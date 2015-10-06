@@ -1,4 +1,4 @@
-package graylog
+package graylog // import "gopkg.in/gemnasium/logrus-graylog-hook.v1"
 
 import (
 	"bytes"
