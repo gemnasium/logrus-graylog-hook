@@ -1,4 +1,4 @@
-# Graylog Hook for Logrus <img src="http://i.imgur.com/hTeVwmJ.png" width="40" height="40" alt=":walrus:" class="emoji" title=":walrus:" />&nbsp;[![Build Status](https://travis-ci.org/gemnasium/logrus-graylog-hook?branch=master)](https://travis-ci.org/gemnasium/logrus-graylog-hook)&nbsp;[![godoc reference](https://godoc.org/github.com/gemnasium/logrus-graylog-hook?status.png)](https://godoc.org/gopkg.in/gemnasium/logrus-graylog-hook.v1)
+# Graylog Hook for Logrus <img src="http://i.imgur.com/hTeVwmJ.png" width="40" height="40" alt=":walrus:" class="emoji" title=":walrus:" />&nbsp;[![Build Status](https://travis-ci.org/gemnasium/logrus-graylog-hook.svg?branch=master)](https://travis-ci.org/gemnasium/logrus-graylog-hook)&nbsp;[![godoc reference](https://godoc.org/github.com/gemnasium/logrus-graylog-hook?status.png)](https://godoc.org/gopkg.in/gemnasium/logrus-graylog-hook.v1)
 
 Use this hook to send your logs to [Graylog](http://graylog2.org) server over UDP.
 The hook is non-blocking: even if UDP is used to send messages, the extra work
