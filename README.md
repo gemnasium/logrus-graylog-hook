@@ -10,7 +10,7 @@ All logrus fields will be sent as additional fields on Graylog.
 
 The hook must be configured with:
 
-* A Graylog UDP address (a "ip:port" string)
+* A Graylog GELF UDP address (a "ip:port" string).
 * A facility
 * an optional hash with extra global fields. These fields will be included in all messages sent to Graylog
 
@@ -18,12 +18,12 @@ The hook must be configured with:
 import (
     "log/syslog"
     "github.com/Sirupsen/logrus"
-    "github.com/gemnasium/logrus-hooks/graylog
+    "github.com/gemnasium/logrus-hooks/graylog"
     )
 
 func main() {
     log := logrus.New()
-    hook, err := log.AddHook(graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"foo": "bar"}))
+    hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
     log.Hooks.Add(hook)
     log.Info("some logging message")
 }
@@ -49,6 +49,6 @@ And set this formatter as the new logging formatter:
 
 ```go
 log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr) // Give a hint why logs are empty
-log.AddHook(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
+log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
 log.SetFormatter(new(NullFormatter)) // Don't send logs to stdout
 ```
