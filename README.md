@@ -23,7 +23,7 @@ import (
 
 func main() {
     log := logrus.New()
-    hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"foo": "bar"})
+    hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
     log.Hooks.Add(hook)
     log.Info("some logging message")
 }
