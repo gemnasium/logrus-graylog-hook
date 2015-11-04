@@ -9,6 +9,7 @@ import (
 )
 
 const SyslogInfoLevel = 6
+const SyslogErrorLevel = 7
 
 func TestWritingToUDP(t *testing.T) {
 	r, err := gelf.NewReader("127.0.0.1:0")
@@ -54,8 +55,9 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 23 { // Update this if code is updated above
-		t.Errorf("msg.Line: expected %d, got %d", 25, msg.Line)
+	line := 24            // line where log.Info is called above
+	if msg.Line != line { // Update this if code is updated above
+		t.Errorf("msg.Line: expected %d, got %d", line, msg.Line)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -69,5 +71,37 @@ func TestWritingToUDP(t *testing.T) {
 		if msg.Extra["_"+k].(string) != extra[k].(string) {
 			t.Errorf("Expected extra '%s' to be %#v, got %#v", k, v, msg.Extra["_"+k])
 		}
+	}
+
+}
+func testErrorLevelReporting(t *testing.T) {
+	r, err := gelf.NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{"foo": "bar"})
+	msgData := "test message\nsecond line"
+
+	log := logrus.New()
+	log.Hooks.Add(hook)
+
+	log.Error(msgData)
+
+	msg, err := r.ReadMessage()
+
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	if msg.Short != "test message" {
+		t.Errorf("msg.Short: expected %s, got %s", msgData, msg.Full)
+	}
+
+	if msg.Full != msgData {
+		t.Errorf("msg.Full: expected %s, got %s", msgData, msg.Full)
+	}
+
+	if msg.Level != SyslogErrorLevel {
+		t.Errorf("msg.Level: expected: %d, got %d)", SyslogErrorLevel, msg.Level)
 	}
 }

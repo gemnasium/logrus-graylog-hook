@@ -55,7 +55,15 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
 	file, line := getCallerIgnoringLogMulti(1)
-	hook.buf <- graylogEntry{entry, file, line}
+
+	gEntry := graylogEntry{entry, file, line}
+	// Don't exit before sending the message
+	if entry.Level == logrus.FatalLevel || entry.Level == logrus.PanicLevel {
+		hook.sendEntry(gEntry)
+		return nil
+
+	}
+	hook.buf <- gEntry
 	return nil
 }
 
@@ -63,56 +71,64 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 func (hook *GraylogHook) fire() {
 	for {
 		entry := <-hook.buf // receive new entry on channel
-		host, err := os.Hostname()
-		if err != nil {
-			host = "localhost"
-		}
-
-		w := hook.gelfLogger
-
-		// remove trailing and leading whitespace
-		p := bytes.TrimSpace([]byte(entry.Message))
-
-		// If there are newlines in the message, use the first line
-		// for the short message and set the full message to the
-		// original input.  If the input has no newlines, stick the
-		// whole thing in Short.
-		short := p
-		full := []byte("")
-		if i := bytes.IndexRune(p, '\n'); i > 0 {
-			short = p[:i]
-			full = p
-		}
-
-		level := int32(entry.Level) + 2 // logrus levels are lower than syslog by 2
-
-		// Don't modify entry.Data directly, as the entry will used after this hook was fired
-		extra := map[string]interface{}{}
-		// Merge extra fields
-		for k, v := range hook.Extra {
-			k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-			extra[k] = v
-		}
-		for k, v := range entry.Data {
-			k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-			extra[k] = v
-		}
-
-		m := gelf.Message{
-			Version:  "1.1",
-			Host:     host,
-			Short:    string(short),
-			Full:     string(full),
-			TimeUnix: time.Now().Unix(),
-			Level:    level,
-			Facility: hook.Facility,
-			File:     entry.file,
-			Line:     entry.line,
-			Extra:    extra,
-		}
-
-		w.WriteMessage(&m) // If WriteMessage failed, just give up, don't look to death
+		hook.sendEntry(entry)
 	}
+}
+
+// sendEntry sends an entry to graylog synchronously
+func (hook *GraylogHook) sendEntry(entry graylogEntry) {
+	host, err := os.Hostname()
+	if err != nil {
+		host = "localhost"
+	}
+
+	w := hook.gelfLogger
+
+	// remove trailing and leading whitespace
+	p := bytes.TrimSpace([]byte(entry.Message))
+
+	// If there are newlines in the message, use the first line
+	// for the short message and set the full message to the
+	// original input.  If the input has no newlines, stick the
+	// whole thing in Short.
+	short := p
+	full := []byte("")
+	if i := bytes.IndexRune(p, '\n'); i > 0 {
+		short = p[:i]
+		full = p
+	}
+
+	level := int32(entry.Level) + 2 // logrus levels are lower than syslog by 2
+
+	// Don't modify entry.Data directly, as the entry will used after this hook was fired
+	extra := map[string]interface{}{}
+	// Merge extra fields
+	for k, v := range hook.Extra {
+		k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+		extra[k] = v
+	}
+	for k, v := range entry.Data {
+		k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+		extra[k] = v
+	}
+
+	m := gelf.Message{
+		Version:  "1.1",
+		Host:     host,
+		Short:    string(short),
+		Full:     string(full),
+		TimeUnix: time.Now().Unix(),
+		Level:    level,
+		Facility: hook.Facility,
+		File:     entry.file,
+		Line:     entry.line,
+		Extra:    extra,
+	}
+
+	if err := w.WriteMessage(&m); err != nil {
+		fmt.Println(err)
+	}
+
 }
 
 // Levels returns the available logging levels.
