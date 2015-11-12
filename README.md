@@ -18,7 +18,7 @@ The hook must be configured with:
 import (
     "log/syslog"
     "github.com/Sirupsen/logrus"
-    "github.com/gemnasium/logrus-hooks/graylog"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v1"
     )
 
 func main() {
