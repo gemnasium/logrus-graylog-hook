@@ -117,7 +117,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		Host:     host,
 		Short:    string(short),
 		Full:     string(full),
-		TimeUnix: time.Now().UnixNano(),
+		TimeUnix: time.Now().UnixNano() / 1000000000.,
 		Level:    level,
 		Facility: hook.Facility,
 		File:     entry.file,
