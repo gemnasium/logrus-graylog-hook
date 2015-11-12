@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/SocialCodeInc/go-gelf/gelf"
 )
 
 // Set graylog.BufSize = <value> _before_ calling NewGraylogHook
@@ -21,7 +20,7 @@ var BufSize uint = 8192
 type GraylogHook struct {
 	Facility   string
 	Extra      map[string]interface{}
-	gelfLogger *gelf.Writer
+	gelfLogger *Writer
 	buf        chan graylogEntry
 }
 
@@ -34,7 +33,7 @@ type graylogEntry struct {
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
 func NewGraylogHook(addr string, facility string, extra map[string]interface{}) *GraylogHook {
-	g, err := gelf.NewWriter(addr)
+	g, err := NewWriter(addr)
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
 	}
@@ -112,7 +111,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		extra[k] = v
 	}
 
-	m := gelf.Message{
+	m := Message{
 		Version:  "1.1",
 		Host:     host,
 		Short:    string(short),
