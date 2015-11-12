@@ -1,4 +1,4 @@
-package graylog // import "gopkg.in/gemnasium/logrus-graylog-hook.v1"
+package graylog // import "github.com/raphyot/logrus-graylog-hook"
 
 import (
 	"bytes"
