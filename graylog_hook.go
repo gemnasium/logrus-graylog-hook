@@ -22,6 +22,7 @@ type GraylogHook struct {
 	Extra      map[string]interface{}
 	gelfLogger *Writer
 	buf        chan graylogEntry
+	blacklist  map[string]bool
 }
 
 // Graylog needs file and line params
@@ -107,8 +108,10 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		extra[k] = v
 	}
 	for k, v := range entry.Data {
-		k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-		extra[k] = v
+		if !hook.blacklist[k] {
+			k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+			extra[k] = v
+		}
 	}
 
 	m := Message{
@@ -139,6 +142,16 @@ func (hook *GraylogHook) Levels() []logrus.Level {
 		logrus.WarnLevel,
 		logrus.InfoLevel,
 		logrus.DebugLevel,
+	}
+}
+
+// Blacklist create a blacklist map to filter some message keys.
+// This useful when you want your application to log extra fields locally
+// but don't want graylog to store them.
+func (hook *GraylogHook) Blacklist(b []string) {
+	hook.blacklist = make(map[string]bool)
+	for _, elem := range b {
+		hook.blacklist[elem] = true
 	}
 }
 

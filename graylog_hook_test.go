@@ -17,11 +17,12 @@ func TestWritingToUDP(t *testing.T) {
 		t.Fatalf("NewReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{"foo": "bar"})
+	hook.Blacklist([]string{"filterMe"})
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
 	log.Hooks.Add(hook)
-	log.WithField("withField", "1").Info(msgData)
+	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
 
 	msg, err := r.ReadMessage()
 
@@ -55,7 +56,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	line := 24            // line where log.Info is called above
+	line := 25            // line where log.Info is called above
 	if msg.Line != line { // Update this if code is updated above
 		t.Errorf("msg.Line: expected %d, got %d", line, msg.Line)
 	}
