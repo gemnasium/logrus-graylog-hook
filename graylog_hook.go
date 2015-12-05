@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -19,10 +20,12 @@ var BufSize uint = 8192
 
 // GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type GraylogHook struct {
-	Facility   string
-	Extra      map[string]interface{}
-	gelfLogger *gelf.Writer
-	buf        chan graylogEntry
+	Facility    string
+	Extra       map[string]interface{}
+	gelfLogger  *gelf.Writer
+	buf         chan graylogEntry
+	wg          sync.WaitGroup
+	synchronous bool
 }
 
 // Graylog needs file and line params
@@ -34,6 +37,24 @@ type graylogEntry struct {
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
 func NewGraylogHook(addr string, facility string, extra map[string]interface{}) *GraylogHook {
+	g, err := gelf.NewWriter(addr)
+	if err != nil {
+		logrus.WithField("err", err).Info("Can't create Gelf logger")
+	}
+	hook := &GraylogHook{
+		Facility:    facility,
+		Extra:       extra,
+		gelfLogger:  g,
+		buf:         make(chan graylogEntry, BufSize),
+		synchronous: true,
+	}
+	go hook.fire() // Log in background
+	return hook
+}
+
+// NewAsyncGraylogHook creates a hook to be added to an instance of logger.
+// The hook created will be asynchronous, and it's the responsability of the user to call the Flush method to empty the log queue.
+func NewAsyncGraylogHook(addr string, facility string, extra map[string]interface{}) *GraylogHook {
 	g, err := gelf.NewWriter(addr)
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
@@ -57,14 +78,16 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	file, line := getCallerIgnoringLogMulti(1)
 
 	gEntry := graylogEntry{entry, file, line}
-	// Don't exit before sending the message
-	if entry.Level == logrus.FatalLevel || entry.Level == logrus.PanicLevel {
-		hook.sendEntry(gEntry)
-		return nil
-
-	}
+	hook.wg.Add(1)
 	hook.buf <- gEntry
+	hook.Flush()
 	return nil
+}
+
+// Flush waits for the log queue to be empty.
+// This func is meant to be used when the hook was created with NewAsyncGraylogHook.
+func (hook *GraylogHook) Flush() {
+	hook.wg.Wait()
 }
 
 // fire will loop on the 'buf' channel, and write entries to graylog
@@ -72,6 +95,7 @@ func (hook *GraylogHook) fire() {
 	for {
 		entry := <-hook.buf // receive new entry on channel
 		hook.sendEntry(entry)
+		hook.wg.Done()
 	}
 }
 
