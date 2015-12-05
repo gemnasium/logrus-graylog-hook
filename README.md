@@ -18,12 +18,30 @@ The hook must be configured with:
 import (
     "log/syslog"
     "github.com/Sirupsen/logrus"
-    "github.com/gemnasium/logrus-hooks/graylog"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v1"
     )
 
 func main() {
     log := logrus.New()
     hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
+    log.Hooks.Add(hook)
+    log.Info("some logging message")
+}
+```
+
+### Asynchronous logger
+
+```go
+import (
+    "log/syslog"
+    "github.com/Sirupsen/logrus"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v1"
+    )
+
+func main() {
+    log := logrus.New()
+    hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
+    defer hook.Flush()
     log.Hooks.Add(hook)
     log.Info("some logging message")
 }
