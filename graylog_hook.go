@@ -2,6 +2,7 @@ package graylog // import "gopkg.in/gemnasium/logrus-graylog-hook.v1"
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -132,8 +133,18 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		extra[k] = v
 	}
 	for k, v := range entry.Data {
-		k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-		extra[k] = v
+		extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+		if k == logrus.ErrorKey {
+			asError, isError := v.(error)
+			_, isMarshaler := v.(json.Marshaler)
+			if isError && !isMarshaler {
+				extra[extraK] = newMarshalableError(asError)
+			} else {
+				extra[extraK] = v
+			}
+		} else {
+			extra[extraK] = v
+		}
 	}
 
 	m := gelf.Message{

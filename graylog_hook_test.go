@@ -1,6 +1,9 @@
 package graylog
 
 import (
+	"encoding/json"
+	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -55,9 +58,8 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	line := 24            // line where log.Info is called above
-	if msg.Line != line { // Update this if code is updated above
-		t.Errorf("msg.Line: expected %d, got %d", line, msg.Line)
+	if msg.Line != 27 { // Update this if code is updated above
+		t.Errorf("msg.Line: expected %d, got %d", 27, msg.Line)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -103,5 +105,33 @@ func testErrorLevelReporting(t *testing.T) {
 
 	if msg.Level != SyslogErrorLevel {
 		t.Errorf("msg.Level: expected: %d, got %d)", SyslogErrorLevel, msg.Level)
+	}
+}
+
+func TestJSONErrorMarshalling(t *testing.T) {
+	r, err := gelf.NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{})
+
+	log := logrus.New()
+	log.Hooks.Add(hook)
+
+	log.WithError(errors.New("sample error")).Info("Testing sample error")
+
+	msg, err := r.ReadMessage()
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	encoded, err := json.Marshal(msg)
+	if err != nil {
+		t.Errorf("Marshaling json: %s", err)
+	}
+
+	errSection := regexp.MustCompile(`"_error":"sample error"`)
+	if !errSection.MatchString(string(encoded)) {
+		t.Errorf("Expected error message to be encoded into message")
 	}
 }
