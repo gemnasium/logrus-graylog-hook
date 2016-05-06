@@ -54,7 +54,8 @@ func NewGraylogHook(addr string, facility string, extra map[string]interface{}) 
 }
 
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
-// The hook created will be asynchronous, and it's the responsability of the user to call the Flush method to empty the log queue.
+// The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
+// before exiting to empty the log queue.
 func NewAsyncGraylogHook(addr string, facility string, extra map[string]interface{}) *GraylogHook {
 	g, err := gelf.NewWriter(addr)
 	if err != nil {
@@ -81,7 +82,13 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	gEntry := graylogEntry{entry, file, line}
 	hook.wg.Add(1)
 	hook.buf <- gEntry
-	hook.Flush()
+
+	if hook.synchronous {
+		hook.Flush()
+	} else {
+		go hook.Flush()
+	}
+
 	return nil
 }
 
