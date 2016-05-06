@@ -26,7 +26,7 @@ type GraylogHook struct {
 	gelfLogger  *gelf.Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	synchronous bool
 }
 
@@ -74,8 +74,8 @@ func NewAsyncGraylogHook(addr string, facility string, extra map[string]interfac
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to Graylog
 func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
-	hook.mu.Lock()
-	defer hook.mu.Unlock()
+	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
+	defer hook.mu.RUnlock()
 
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
@@ -96,7 +96,7 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncGraylogHook.
 func (hook *GraylogHook) Flush() {
-	hook.mu.Lock()
+	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
 	defer hook.mu.Unlock()
 
 	hook.wg.Wait()
