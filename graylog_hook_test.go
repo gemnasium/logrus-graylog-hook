@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/SocialCodeInc/go-gelf/gelf"
@@ -58,8 +59,8 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 27 { // Update this if code is updated above
-		t.Errorf("msg.Line: expected %d, got %d", 27, msg.Line)
+	if msg.Line != 28 { // Update this if code is updated above
+		t.Errorf("msg.Line: expected %d, got %d", 28, msg.Line)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -133,5 +134,65 @@ func TestJSONErrorMarshalling(t *testing.T) {
 	errSection := regexp.MustCompile(`"_error":"sample error"`)
 	if !errSection.MatchString(string(encoded)) {
 		t.Errorf("Expected error message to be encoded into message")
+	}
+}
+
+func TestParallelLogging(t *testing.T) {
+	r, err := gelf.NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), "test_facility", nil)
+	asyncHook := NewAsyncGraylogHook(r.Addr(), "test_facility", nil)
+
+	log := logrus.New()
+	log.Hooks.Add(hook)
+	log.Hooks.Add(asyncHook)
+
+	quit := make(chan struct{})
+	defer close(quit)
+
+	panicked := false
+
+	recordPanic := func() {
+		if r := recover(); r != nil {
+			panicked = true
+		}
+	}
+
+	go func() {
+		// Start draining messages from GELF
+		go func() {
+			defer recordPanic()
+			for {
+				select {
+				case <-quit:
+					return
+				default:
+					r.ReadMessage()
+				}
+			}
+		}()
+
+		// Log into our hook in parallel
+		for i := 0; i < 10; i++ {
+			go func() {
+				defer recordPanic()
+				for {
+					select {
+					case <-quit:
+						return
+					default:
+						log.Info("Logging")
+					}
+				}
+			}()
+		}
+	}()
+
+	// Let them all do their thing for a while
+	time.Sleep(100 * time.Millisecond)
+	if panicked {
+		t.Fatalf("Logging in parallel caused a panic")
 	}
 }

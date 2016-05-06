@@ -26,6 +26,7 @@ type GraylogHook struct {
 	gelfLogger  *gelf.Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
+	mu          sync.Mutex
 	synchronous bool
 }
 
@@ -46,10 +47,8 @@ func NewGraylogHook(addr string, facility string, extra map[string]interface{}) 
 		Facility:    facility,
 		Extra:       extra,
 		gelfLogger:  g,
-		buf:         make(chan graylogEntry, BufSize),
 		synchronous: true,
 	}
-	go hook.fire() // Log in background
 	return hook
 }
 
@@ -75,18 +74,20 @@ func NewAsyncGraylogHook(addr string, facility string, extra map[string]interfac
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to Graylog
 func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
 	file, line := getCallerIgnoringLogMulti(1)
 
 	gEntry := graylogEntry{entry, file, line}
-	hook.wg.Add(1)
-	hook.buf <- gEntry
 
 	if hook.synchronous {
-		hook.Flush()
+		hook.sendEntry(gEntry)
 	} else {
-		go hook.Flush()
+		hook.wg.Add(1)
+		hook.buf <- gEntry
 	}
 
 	return nil
@@ -95,6 +96,9 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncGraylogHook.
 func (hook *GraylogHook) Flush() {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+
 	hook.wg.Wait()
 }
 
