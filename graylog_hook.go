@@ -26,6 +26,7 @@ type GraylogHook struct {
 	gelfLogger  *gelf.Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
+	mu          sync.RWMutex
 	synchronous bool
 }
 
@@ -46,15 +47,14 @@ func NewGraylogHook(addr string, facility string, extra map[string]interface{}) 
 		Facility:    facility,
 		Extra:       extra,
 		gelfLogger:  g,
-		buf:         make(chan graylogEntry, BufSize),
 		synchronous: true,
 	}
-	go hook.fire() // Log in background
 	return hook
 }
 
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
-// The hook created will be asynchronous, and it's the responsability of the user to call the Flush method to empty the log queue.
+// The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
+// before exiting to empty the log queue.
 func NewAsyncGraylogHook(addr string, facility string, extra map[string]interface{}) *GraylogHook {
 	g, err := gelf.NewWriter(addr)
 	if err != nil {
@@ -74,20 +74,31 @@ func NewAsyncGraylogHook(addr string, facility string, extra map[string]interfac
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to Graylog
 func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
+	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
+	defer hook.mu.RUnlock()
+
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
 	file, line := getCallerIgnoringLogMulti(1)
 
 	gEntry := graylogEntry{entry, file, line}
-	hook.wg.Add(1)
-	hook.buf <- gEntry
-	hook.Flush()
+
+	if hook.synchronous {
+		hook.sendEntry(gEntry)
+	} else {
+		hook.wg.Add(1)
+		hook.buf <- gEntry
+	}
+
 	return nil
 }
 
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncGraylogHook.
 func (hook *GraylogHook) Flush() {
+	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
+	defer hook.mu.Unlock()
+
 	hook.wg.Wait()
 }
 
