@@ -81,7 +81,13 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	// 1 for the function that called us.
 	file, line := getCallerIgnoringLogMulti(1)
 
-	gEntry := graylogEntry{entry, file, line}
+	newData := make(map[string]interface{})
+	for k, v := range entry.Data {
+		newData[k] = v
+	}
+
+	newEntry := &logrus.Entry{entry.Logger, newData, entry.Time, entry.Level, entry.Message}
+	gEntry := graylogEntry{newEntry, file, line}
 
 	if hook.synchronous {
 		hook.sendEntry(gEntry)

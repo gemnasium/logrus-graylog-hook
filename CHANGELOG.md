@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 1.1.2 - 2016-06-03
+
+* Fix another race condition (credits: @dreyinger / #8)
+
 ## 1.1.1 - 2016-05-10
 
 * Fix race condition (credits: @rschmukler / #6)
