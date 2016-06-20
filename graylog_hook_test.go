@@ -20,7 +20,7 @@ func TestWritingToUDP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{"foo": "bar"})
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
@@ -43,10 +43,6 @@ func TestWritingToUDP(t *testing.T) {
 
 	if msg.Level != SyslogInfoLevel {
 		t.Errorf("msg.Level: expected: %d, got %d)", SyslogInfoLevel, msg.Level)
-	}
-
-	if msg.Facility != "test_facility" {
-		t.Errorf("msg.Facility: expected %#v, got %#v)", "test_facility", msg.Facility)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -82,7 +78,7 @@ func testErrorLevelReporting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{"foo": "bar"})
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
@@ -114,7 +110,7 @@ func TestJSONErrorMarshalling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), "test_facility", map[string]interface{}{})
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 
 	log := logrus.New()
 	log.Hooks.Add(hook)
@@ -142,8 +138,8 @@ func TestParallelLogging(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), "test_facility", nil)
-	asyncHook := NewAsyncGraylogHook(r.Addr(), "test_facility", nil)
+	hook := NewGraylogHook(r.Addr(), nil)
+	asyncHook := NewAsyncGraylogHook(r.Addr(), nil)
 
 	log := logrus.New()
 	log.Hooks.Add(hook)
