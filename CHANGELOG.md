@@ -4,6 +4,7 @@
 
 * Remove facility param in constructor, as it's an optional param in Graylog 2.0 (credits: @saward / #9)
 * Improve precision of TimeUnix (credits: @RaphYot / #2)
+* Expose Gelf Writer (we will make this an interface in later versions) (credits: @cha-won / #10)
 
 ## 1.1.2 - 2016-06-03
 

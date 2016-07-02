@@ -1,6 +1,7 @@
 package graylog
 
 import (
+	"compress/flate"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -58,8 +59,8 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 31 { // Update this if code is updated above
-		t.Errorf("msg.Line: expected %d, got %d", 28, msg.Line)
+	if msg.Line != 32 { // Update this if code is updated above
+		t.Errorf("msg.Line: expected %d, got %d", 32, msg.Line)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -196,5 +197,25 @@ func TestParallelLogging(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if panicked {
 		t.Fatalf("Logging in parallel caused a panic")
+	}
+}
+
+func TestSetWriter(t *testing.T) {
+	r, err := gelf.NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), nil)
+
+	w := hook.Writer()
+	w.CompressionLevel = flate.BestCompression
+	hook.SetWriter(w)
+
+	if hook.Writer().CompressionLevel != flate.BestCompression {
+		t.Error("Writer was not set correctly")
+	}
+
+	if hook.SetWriter(nil) == nil {
+		t.Error("Setting a nil writter should raise an error")
 	}
 }

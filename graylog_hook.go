@@ -3,6 +3,7 @@ package graylog // import "gopkg.in/gemnasium/logrus-graylog-hook.v2"
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -201,6 +202,20 @@ func (hook *GraylogHook) Blacklist(b []string) {
 	for _, elem := range b {
 		hook.blacklist[elem] = true
 	}
+}
+
+// SetWriter sets the hook Gelf Writer
+func (hook *GraylogHook) SetWriter(w *Writer) error {
+	if w == nil {
+		return errors.New("writer can't be nil")
+	}
+	hook.gelfLogger = w
+	return nil
+}
+
+// Writer returns the logger Gelf Writer
+func (hook *GraylogHook) Writer() *Writer {
+	return hook.gelfLogger
 }
 
 // getCaller returns the filename and the line info of a function
