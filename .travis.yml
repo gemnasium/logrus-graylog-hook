@@ -6,6 +6,6 @@ go:
   - tip
 install:
   - mkdir -p $HOME/gopath/src/gopkg.in/gemnasium
-  - mv $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook $HOME/gopath/src/gopkg.in/gemnasium/logrus-graylog-hook.v1
-  - cd $HOME/gopath/src/gopkg.in/gemnasium/logrus-graylog-hook.v1
+  - mv $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook $HOME/gopath/src/gopkg.in/gemnasium/logrus-graylog-hook.v2
+  - cd $HOME/gopath/src/gopkg.in/gemnasium/logrus-graylog-hook.v2
   - go get -t
