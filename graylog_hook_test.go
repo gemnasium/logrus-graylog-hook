@@ -3,6 +3,7 @@ package graylog
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"regexp"
 	"strings"
 	"testing"
@@ -21,11 +22,13 @@ func TestWritingToUDP(t *testing.T) {
 		t.Fatalf("NewReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
+	hook.Blacklist([]string{"filterMe"})
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
+	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
-	log.WithField("withField", "1").Info(msgData)
+	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
 
 	msg, err := r.ReadMessage()
 
@@ -55,7 +58,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 28 { // Update this if code is updated above
+	if msg.Line != 31 { // Update this if code is updated above
 		t.Errorf("msg.Line: expected %d, got %d", 28, msg.Line)
 	}
 
@@ -82,6 +85,7 @@ func testErrorLevelReporting(t *testing.T) {
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
+	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 
 	log.Error(msgData)
@@ -113,6 +117,7 @@ func TestJSONErrorMarshalling(t *testing.T) {
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 
 	log := logrus.New()
+	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 
 	log.WithError(errors.New("sample error")).Info("Testing sample error")
@@ -142,6 +147,7 @@ func TestParallelLogging(t *testing.T) {
 	asyncHook := NewAsyncGraylogHook(r.Addr(), nil)
 
 	log := logrus.New()
+	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 	log.Hooks.Add(asyncHook)
 

@@ -3,6 +3,7 @@
 ## 2.0.0 - 2016-07-02
 
 * Remove facility param in constructor, as it's an optional param in Graylog 2.0 (credits: @saward / #9)
+* Improve precision of TimeUnix (credits: @RaphYot / #2)
 
 ## 1.1.2 - 2016-06-03
 

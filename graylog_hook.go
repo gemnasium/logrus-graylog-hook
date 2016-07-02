@@ -1,4 +1,4 @@
-package graylog
+package graylog // import "gopkg.in/gemnasium/logrus-graylog-hook.v2"
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/SocialCodeInc/go-gelf/gelf"
 )
 
 // Set graylog.BufSize = <value> _before_ calling NewGraylogHook
@@ -22,11 +21,12 @@ var BufSize uint = 8192
 // GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type GraylogHook struct {
 	Extra       map[string]interface{}
-	gelfLogger  *gelf.Writer
+	gelfLogger  *Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
 	mu          sync.RWMutex
 	synchronous bool
+	blacklist   map[string]bool
 }
 
 // Graylog needs file and line params
@@ -38,7 +38,7 @@ type graylogEntry struct {
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
 func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := gelf.NewWriter(addr)
+	g, err := NewWriter(addr)
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
 	}
@@ -54,7 +54,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
 func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := gelf.NewWriter(addr)
+	g, err := NewWriter(addr)
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
 	}
@@ -147,26 +147,28 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		extra[k] = v
 	}
 	for k, v := range entry.Data {
-		extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-		if k == logrus.ErrorKey {
-			asError, isError := v.(error)
-			_, isMarshaler := v.(json.Marshaler)
-			if isError && !isMarshaler {
-				extra[extraK] = newMarshalableError(asError)
+		if !hook.blacklist[k] {
+			extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+			if k == logrus.ErrorKey {
+				asError, isError := v.(error)
+				_, isMarshaler := v.(json.Marshaler)
+				if isError && !isMarshaler {
+					extra[extraK] = newMarshalableError(asError)
+				} else {
+					extra[extraK] = v
+				}
 			} else {
 				extra[extraK] = v
 			}
-		} else {
-			extra[extraK] = v
 		}
 	}
 
-	m := gelf.Message{
+	m := Message{
 		Version:  "1.1",
 		Host:     host,
 		Short:    string(short),
 		Full:     string(full),
-		TimeUnix: time.Now().Unix(),
+		TimeUnix: float64(time.Now().UnixNano()/1000000) / 1000.,
 		Level:    level,
 		File:     entry.file,
 		Line:     entry.line,
@@ -188,6 +190,16 @@ func (hook *GraylogHook) Levels() []logrus.Level {
 		logrus.WarnLevel,
 		logrus.InfoLevel,
 		logrus.DebugLevel,
+	}
+}
+
+// Blacklist create a blacklist map to filter some message keys.
+// This useful when you want your application to log extra fields locally
+// but don't want graylog to store them.
+func (hook *GraylogHook) Blacklist(b []string) {
+	hook.blacklist = make(map[string]bool)
+	for _, elem := range b {
+		hook.blacklist[elem] = true
 	}
 }
 
