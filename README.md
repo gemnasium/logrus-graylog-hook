@@ -15,35 +15,36 @@ The hook must be configured with:
 * an optional hash with extra global fields. These fields will be included in all messages sent to Graylog
 
 ```go
+package main
+
 import (
-    "log/syslog"
-    "github.com/Sirupsen/logrus"
-    "gopkg.in/gemnasium/logrus-graylog-hook.v1"
+    log "github.com/Sirupsen/logrus"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v2"
     )
 
 func main() {
-    log := logrus.New()
-    hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
-    log.Hooks.Add(hook)
-    log.Info("some logging message")
+    hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"facility": "awesomeMicroService"})
+    log.AddHook(hook)
+    log.SetLevel(log.DebugLevel)
+    log.Debug("some logging message")
 }
 ```
 
 ### Asynchronous logger
 
 ```go
+package main
+
 import (
-    "log/syslog"
-    "github.com/Sirupsen/logrus"
-    "gopkg.in/gemnasium/logrus-graylog-hook.v1"
+    log "github.com/Sirupsen/logrus"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v2"
     )
 
 func main() {
-    log := logrus.New()
-    hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", "some_facility", map[string]interface{}{"this": "is logged every time"})
+    hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"facility": "awesomeMicroService"})
     defer hook.Flush()
-    log.Hooks.Add(hook)
-    log.Info("some logging message")
+    log.SetLevel(log.DebugLevel)
+    log.Debug("some logging message")
 }
 ```
 
