@@ -86,7 +86,7 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 
 	newEntry := &logrus.Entry{
 		Logger:  entry.Logger,
-		Fields:  newData,
+		Data:    newData,
 		Time:    entry.Time,
 		Level:   entry.Level,
 		Message: entry.Message}
