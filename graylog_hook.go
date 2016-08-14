@@ -84,7 +84,12 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 		newData[k] = v
 	}
 
-	newEntry := &logrus.Entry{entry.Logger, newData, entry.Time, entry.Level, entry.Message}
+	newEntry := &logrus.Entry{
+		Logger:  entry.Logger,
+		Fields:  newData,
+		Time:    entry.Time,
+		Level:   entry.Level,
+		Message: entry.Message}
 	gEntry := graylogEntry{newEntry, file, line}
 
 	if hook.synchronous {
