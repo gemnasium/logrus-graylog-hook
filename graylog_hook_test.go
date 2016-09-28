@@ -11,14 +11,13 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/SocialCodeInc/go-gelf/gelf"
 )
 
 const SyslogInfoLevel = 6
 const SyslogErrorLevel = 7
 
 func TestWritingToUDP(t *testing.T) {
-	r, err := gelf.NewReader("127.0.0.1:0")
+	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
@@ -59,7 +58,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 32 { // Update this if code is updated above
+	if msg.Line != 31 { // Update this if code is updated above
 		t.Errorf("msg.Line: expected %d, got %d", 32, msg.Line)
 	}
 
@@ -78,7 +77,7 @@ func TestWritingToUDP(t *testing.T) {
 
 }
 func testErrorLevelReporting(t *testing.T) {
-	r, err := gelf.NewReader("127.0.0.1:0")
+	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
@@ -111,7 +110,7 @@ func testErrorLevelReporting(t *testing.T) {
 }
 
 func TestJSONErrorMarshalling(t *testing.T) {
-	r, err := gelf.NewReader("127.0.0.1:0")
+	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
@@ -140,7 +139,7 @@ func TestJSONErrorMarshalling(t *testing.T) {
 }
 
 func TestParallelLogging(t *testing.T) {
-	r, err := gelf.NewReader("127.0.0.1:0")
+	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
@@ -201,7 +200,7 @@ func TestParallelLogging(t *testing.T) {
 }
 
 func TestSetWriter(t *testing.T) {
-	r, err := gelf.NewReader("127.0.0.1:0")
+	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}

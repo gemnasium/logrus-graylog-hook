@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 2.0.2 - 2016-09-28
+
+* Get rid of github.com/SocialCodeInc/go-gelf/gelf (#14)
+
 ## 2.0.1 - 2016-08-16
 
 * Fix an issue with entry constructor (#12)
