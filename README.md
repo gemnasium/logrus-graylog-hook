@@ -58,16 +58,33 @@ type NullFormatter struct {
 }
 
 // Don't spend time formatting logs
-func (NullFormatter) Format(e *log.Entry) ([]byte, error) {
+func (NullFormatter) Format(e *logrus.Entry) ([]byte, error) {
     return []byte{}, nil
-    }
 }
 ```
 
 And set this formatter as the new logging formatter:
 
 ```go
-log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr) // Give a hint why logs are empty
-log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
-log.SetFormatter(new(NullFormatter)) // Don't send logs to stdout
+package main
+
+import (
+    "github.com/Sirupsen/logrus"
+    "gopkg.in/gemnasium/logrus-graylog-hook.v2"
+)
+
+type NullFormatter struct {
+}
+
+// Don't spend time formatting logs
+func (NullFormatter) Format(e *logrus.Entry) ([]byte, error) {
+    return []byte{}, nil
+}
+
+func main() {
+    var log = logrus.New()
+    log.Infof("Log messages are now sent to Graylog (udp://%s)", "<graylog_ip>:<graylog_port>")      // Give a hint why logs are empty
+    log.Hooks.Add(graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{})) // set graylogAddr accordingly
+    logrus.SetFormatter(new(NullFormatter))                                                          // Don't send logs to stdout
+}
 ```
