@@ -17,12 +17,12 @@ The hook must be configured with:
 package main
 
 import (
-    "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    "github.com/Sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
-    )
+)
 
 func main() {
+    var log = logrus.New()
     hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
     log.Hooks.Add(hook)
     log.Info("some logging message")
