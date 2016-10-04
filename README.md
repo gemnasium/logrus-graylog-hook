@@ -35,12 +35,12 @@ func main() {
 package main
 
 import (
-    "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    "github.com/Sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
-    )
+)
 
 func main() {
+    var log = logrus.New()
     hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
     log.Hooks.Add(hook)
