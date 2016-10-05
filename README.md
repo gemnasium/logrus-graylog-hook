@@ -67,7 +67,8 @@ And set this formatter as the new logging formatter:
 
 ```go
     var log = logrus.New()
+    graylogAddr := "<graylog_ip>:<graylog_port>"                                 // set graylogAddr accordingly
     log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr)    // Give a hint why logs are empty
-    log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, map[string]interface{}{})) // set graylogAddr accordingly
+    log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, map[string]interface{}{}))
     logrus.SetFormatter(new(NullFormatter))                                      // Don't send logs to stdout
 ```
