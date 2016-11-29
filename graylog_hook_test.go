@@ -22,6 +22,7 @@ func TestWritingToUDP(t *testing.T) {
 		t.Fatalf("NewReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
+	hook.Host = "testing.local"
 	hook.Blacklist([]string{"filterMe"})
 	msgData := "test message\nsecond line"
 
@@ -48,6 +49,10 @@ func TestWritingToUDP(t *testing.T) {
 		t.Errorf("msg.Level: expected: %d, got %d)", SyslogInfoLevel, msg.Level)
 	}
 
+	if msg.Host != "testing.local" {
+		t.Errorf("Host should match (exp: testing.local, got: %s)", msg.Host)
+	}
+
 	if len(msg.Extra) != 2 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
 	}
@@ -58,7 +63,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 31 { // Update this if code is updated above
+	if msg.Line != 32 { // Update this if code is updated above
 		t.Errorf("msg.Line: expected %d, got %d", 32, msg.Line)
 	}
 
@@ -74,8 +79,8 @@ func TestWritingToUDP(t *testing.T) {
 			t.Errorf("Expected extra '%s' to be %#v, got %#v", k, v, msg.Extra["_"+k])
 		}
 	}
-
 }
+
 func testErrorLevelReporting(t *testing.T) {
 	r, err := NewReader("127.0.0.1:0")
 	if err != nil {

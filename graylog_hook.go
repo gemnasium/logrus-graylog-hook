@@ -22,6 +22,7 @@ var BufSize uint = 8192
 // GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type GraylogHook struct {
 	Extra       map[string]interface{}
+	Host        string
 	gelfLogger  *Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
@@ -43,7 +44,14 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
 	}
+
+	host, err := os.Hostname()
+	if err != nil {
+		host = "localhost"
+	}
+
 	hook := &GraylogHook{
+		Host:        host,
 		Extra:       extra,
 		gelfLogger:  g,
 		synchronous: true,
@@ -59,7 +67,14 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
 	}
+
+	host, err := os.Hostname()
+	if err != nil {
+		host = "localhost"
+	}
+
 	hook := &GraylogHook{
+		Host:       host,
 		Extra:      extra,
 		gelfLogger: g,
 		buf:        make(chan graylogEntry, BufSize),
@@ -123,11 +138,6 @@ func (hook *GraylogHook) fire() {
 
 // sendEntry sends an entry to graylog synchronously
 func (hook *GraylogHook) sendEntry(entry graylogEntry) {
-	host, err := os.Hostname()
-	if err != nil {
-		host = "localhost"
-	}
-
 	w := hook.gelfLogger
 
 	// remove trailing and leading whitespace
@@ -172,7 +182,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 
 	m := Message{
 		Version:  "1.1",
-		Host:     host,
+		Host:     hook.Host,
 		Short:    string(short),
 		Full:     string(full),
 		TimeUnix: float64(time.Now().UnixNano()/1000000) / 1000.,
