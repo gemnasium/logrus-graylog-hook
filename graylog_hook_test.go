@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	pkgerrors "github.com/pkg/errors"
 )
 
 const SyslogInfoLevel = 6
@@ -63,8 +64,9 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	if msg.Line != 32 { // Update this if code is updated above
-		t.Errorf("msg.Line: expected %d, got %d", 32, msg.Line)
+	lineExpected := 33 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
 	if len(msg.Extra) != 2 {
@@ -221,5 +223,56 @@ func TestSetWriter(t *testing.T) {
 
 	if hook.SetWriter(nil) == nil {
 		t.Error("Setting a nil writter should raise an error")
+	}
+}
+
+func TestStackTracer(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+
+	log := logrus.New()
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+
+	stackErr := pkgerrors.New("sample error")
+
+	log.WithError(stackErr).Info("Testing sample error")
+
+	msg, err := r.ReadMessage()
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	fileExpected := "graylog_hook_test.go"
+	if !strings.HasSuffix(msg.File, fileExpected) {
+		t.Errorf("msg.File: expected %s, got %s", fileExpected,
+			msg.File)
+	}
+
+	lineExpected := 240 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
+	}
+
+	stacktraceI, ok := msg.Extra[StackTraceKey]
+	if !ok {
+		t.Error("Stack Trace not found in result")
+	}
+	stacktrace, ok := stacktraceI.(string)
+	if !ok {
+		t.Error("Stack Trace is not a string")
+	}
+	stacktraceRE := regexp.MustCompile(`^
+gopkg.in/gemnasium/logrus-graylog-hook%2ev2.TestStackTracer
+	/.*gopkg.in/gemnasium/logrus-graylog-hook.v2/graylog_hook_test.go:\d+
+testing.tRunner
+	/.*/testing.go:\d+
+runtime.*
+	/.*/runtime/.*:\d+$`)
+	if !stacktraceRE.MatchString(stacktrace) {
+		t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
 	}
 }
