@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 2.0.3 - 2016-11-30
+
+* Allow specifying the host instead of taking os.Hostname by default (@mweibel/#18)
+
 ## 2.0.2 - 2016-09-28
 
 * Get rid of github.com/SocialCodeInc/go-gelf/gelf (#14)
