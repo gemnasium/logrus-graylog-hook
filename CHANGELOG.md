@@ -2,7 +2,8 @@
 
 ## 2.0.3 - 2016-11-30
 
-* Allow specifying the host instead of taking os.Hostname by default (@mweibel/#18)
+* Add support for extracting stacktraces from errors (@flimzy/#19)
+* Allow specifying the host instead of taking `os.Hostname` by default (@mweibel/#18)
 
 ## 2.0.2 - 2016-09-28
 
