@@ -237,11 +237,24 @@ func TestStackTracer(t *testing.T) {
 	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 
-	log.WithError(pkgerrors.New("sample error")).Info("Testing sample error")
+	stackErr := pkgerrors.New("sample error")
+
+	log.WithError(stackErr).Info("Testing sample error")
 
 	msg, err := r.ReadMessage()
 	if err != nil {
 		t.Errorf("ReadMessage: %s", err)
+	}
+
+	fileExpected := "graylog_hook_test.go"
+	if !strings.HasSuffix(msg.File, fileExpected) {
+		t.Errorf("msg.File: expected %s, got %s", fileExpected,
+			msg.File)
+	}
+
+	lineExpected := 240 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
 	stacktraceI, ok := msg.Extra[StackTraceKey]

@@ -178,6 +178,11 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 				}
 				if stackTrace := extractStackTrace(asError); stackTrace != nil {
 					extra[StackTraceKey] = fmt.Sprintf("%+v", stackTrace)
+					file, line := extractFileAndLine(stackTrace)
+					if file != "" && line != 0 {
+						entry.file = file
+						entry.line = line
+					}
 				}
 			} else {
 				extra[extraK] = v
