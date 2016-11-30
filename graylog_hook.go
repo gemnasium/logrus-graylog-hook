@@ -14,6 +14,8 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+const StackTraceKey = "_stacktrace"
+
 // Set graylog.BufSize = <value> _before_ calling NewGraylogHook
 // Once the buffer is full, logging will start blocking, waiting for slots to
 // be available in the queue.
@@ -174,6 +176,9 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 				} else {
 					extra[extraK] = v
 				}
+				if stackTrace := extractStackTrace(asError); stackTrace != nil {
+					extra[StackTraceKey] = fmt.Sprintf("%+v", stackTrace)
+				}
 			} else {
 				extra[extraK] = v
 			}
@@ -195,7 +200,6 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 	if err := w.WriteMessage(&m); err != nil {
 		fmt.Println(err)
 	}
-
 }
 
 // Levels returns the available logging levels.
