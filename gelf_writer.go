@@ -92,7 +92,7 @@ func NewWriter(addr string) (*Writer, error) {
 	w := new(Writer)
 	w.CompressionLevel = flate.BestSpeed
 
-	if w.conn, err = net.Dial("udp", addr); err != nil {
+	if w.conn, err = net.Dial("tcp", addr); err != nil {
 		return nil, err
 	}
 	if w.hostname, err = os.Hostname(); err != nil {
