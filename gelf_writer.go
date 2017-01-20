@@ -7,8 +7,6 @@ package graylog
 import (
 	"bytes"
 	"compress/flate"
-	"compress/gzip"
-	"compress/zlib"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -174,38 +172,12 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 		return
 	}
 
-	var zBuf bytes.Buffer
-	var zw io.WriteCloser
-	switch w.CompressionType {
-	case CompressGzip:
-		zw, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
-	case CompressZlib:
-		zw, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
-	default:
-		panic(fmt.Sprintf("unknown compression type %d",
-			w.CompressionType))
+	_, writeErr := w.conn.Write(mBytes)
+	if writeErr != nil {
+		w.conn, _ = net.Dial("tcp", w.conn.RemoteAddr().String())
+		w.conn.Write(mBytes)
 	}
-	if err != nil {
-		return
-	}
-	if _, err = zw.Write(mBytes); err != nil {
-		return
-	}
-	zw.Close()
-
-	zBytes := zBuf.Bytes()
-	if numChunks(zBytes) > 1 {
-		return w.writeChunked(zBytes)
-	}
-
-	n, err := w.conn.Write(zBytes)
-	if err != nil {
-		return
-	}
-	if n != len(zBytes) {
-		return fmt.Errorf("bad write (%d/%d)", n, len(zBytes))
-	}
-
+	w.conn.Write(make([]byte, 1))
 	return nil
 }
 
