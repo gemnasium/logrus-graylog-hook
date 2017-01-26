@@ -93,6 +93,7 @@ func NewWriter(addr string) (*Writer, error) {
 	if w.conn, err = net.Dial("tcp", addr); err != nil {
 		return nil, err
 	}
+	w.conn.SetWriteDeadline(time.Now().Add(5 * time.Minute))
 	if w.hostname, err = os.Hostname(); err != nil {
 		return nil, err
 	}
@@ -175,6 +176,7 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 	_, writeErr := w.conn.Write(mBytes)
 	if writeErr != nil {
 		w.conn, _ = net.Dial("tcp", w.conn.RemoteAddr().String())
+		w.conn.SetWriteDeadline(time.Now().Add(5 * time.Minute))
 		w.conn.Write(mBytes)
 	}
 	w.conn.Write(make([]byte, 1))
