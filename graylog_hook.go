@@ -214,8 +214,6 @@ func (hook *GraylogHook) Levels() []logrus.Level {
 		logrus.FatalLevel,
 		logrus.ErrorLevel,
 		logrus.WarnLevel,
-		logrus.InfoLevel,
-		logrus.DebugLevel,
 	}
 }
 
