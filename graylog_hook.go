@@ -16,6 +16,15 @@ import (
 
 const StackTraceKey = "_stacktrace"
 
+var LogrusLevels = []logrus.Level{
+	logrus.PanicLevel,
+	logrus.FatalLevel,
+	logrus.ErrorLevel,
+	logrus.WarnLevel,
+	logrus.InfoLevel,
+	logrus.DebugLevel,
+}
+
 // Set graylog.BufSize = <value> _before_ calling NewGraylogHook
 // Once the buffer is full, logging will start blocking, waiting for slots to
 // be available in the queue.
@@ -31,6 +40,7 @@ type GraylogHook struct {
 	mu          sync.RWMutex
 	synchronous bool
 	blacklist   map[string]bool
+	logLevels   []logrus.Level
 }
 
 // Graylog needs file and line params
@@ -207,14 +217,23 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 	}
 }
 
+// sets a maximum level on output
+func (hook *GraylogHook) SetLevel(level logrus.Level) {
+	allLevels := LogrusLevels
+	for _, element := range allLevels {
+		if int32(element) <= int32(level) {
+			hook.logLevels = append(hook.logLevels, element)
+		}
+	}
+}
+
 // Levels returns the available logging levels.
 func (hook *GraylogHook) Levels() []logrus.Level {
-	return []logrus.Level{
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-		logrus.WarnLevel,
+	if len(hook.logLevels) == 0 {
+		return LogrusLevels
 	}
+	fmt.Println(hook.logLevels)
+	return hook.logLevels
 }
 
 // Blacklist create a blacklist map to filter some message keys.
