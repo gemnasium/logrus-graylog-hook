@@ -232,7 +232,6 @@ func (hook *GraylogHook) Levels() []logrus.Level {
 	if len(hook.logLevels) == 0 {
 		return LogrusLevels
 	}
-	fmt.Println(hook.logLevels)
 	return hook.logLevels
 }
 
