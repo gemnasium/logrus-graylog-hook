@@ -25,6 +25,7 @@ var BufSize uint = 8192
 type GraylogHook struct {
 	Extra       map[string]interface{}
 	Host        string
+	Level       logrus.Level
 	gelfLogger  *Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
@@ -55,6 +56,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 	hook := &GraylogHook{
 		Host:        host,
 		Extra:       extra,
+		Level:       logrus.DebugLevel,
 		gelfLogger:  g,
 		synchronous: true,
 	}
@@ -78,6 +80,7 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 	hook := &GraylogHook{
 		Host:       host,
 		Extra:      extra,
+		Level:      logrus.DebugLevel,
 		gelfLogger: g,
 		buf:        make(chan graylogEntry, BufSize),
 	}
@@ -209,14 +212,13 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 
 // Levels returns the available logging levels.
 func (hook *GraylogHook) Levels() []logrus.Level {
-	return []logrus.Level{
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-		logrus.WarnLevel,
-		logrus.InfoLevel,
-		logrus.DebugLevel,
+	levels := []logrus.Level{}
+	for _, level := range logrus.AllLevels {
+		if level <= hook.Level {
+			levels = append(levels, level)
+		}
 	}
+	return levels
 }
 
 // Blacklist create a blacklist map to filter some message keys.
