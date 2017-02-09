@@ -266,8 +266,8 @@ func TestStackTracer(t *testing.T) {
 		t.Error("Stack Trace is not a string")
 	}
 	stacktraceRE := regexp.MustCompile(`^
-gopkg.in/gemnasium/logrus-graylog-hook%2ev2.TestStackTracer
-	/.*gopkg.in/gemnasium/logrus-graylog-hook.v2/graylog_hook_test.go:\d+
+.+/logrus-graylog-hook(%2ev2)?.TestStackTracer
+	/.+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
 testing.tRunner
 	/.*/testing.go:\d+
 runtime.*
