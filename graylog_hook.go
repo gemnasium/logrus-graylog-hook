@@ -55,6 +55,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 	g, err := NewWriter(addr)
 	if err != nil {
 		logrus.WithField("err", err).Info("Can't create Gelf logger")
+		return nil
 	}
 
 	host, err := os.Hostname()
