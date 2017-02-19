@@ -17,12 +17,12 @@ The hook must be configured with:
 package main
 
 import (
-    "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    "github.com/Sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
-    )
+)
 
 func main() {
+    var log = logrus.New()
     hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
     log.Hooks.Add(hook)
     log.Info("some logging message")
@@ -35,12 +35,12 @@ func main() {
 package main
 
 import (
-    "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    "github.com/Sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
-    )
+)
 
 func main() {
+    var log = logrus.New()
     hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
     log.Hooks.Add(hook)
@@ -58,7 +58,7 @@ type NullFormatter struct {
 }
 
 // Don't spend time formatting logs
-func (NullFormatter) Format(e *log.Entry) ([]byte, error) {
+func (NullFormatter) Format(e *logrus.Entry) ([]byte, error) {
     return []byte{}, nil
 }
 ```
@@ -66,7 +66,9 @@ func (NullFormatter) Format(e *log.Entry) ([]byte, error) {
 And set this formatter as the new logging formatter:
 
 ```go
-log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr) // Give a hint why logs are empty
-log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
-log.SetFormatter(new(NullFormatter)) // Don't send logs to stdout
+var log = logrus.New()
+graylogAddr := "<graylog_ip>:<graylog_port>"                                 // set graylogAddr accordingly
+log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr)    // Give a hint why logs are empty
+log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, map[string]interface{}{}))
+logrus.SetFormatter(new(NullFormatter))                                      // Don't send logs to stdout
 ```
