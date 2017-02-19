@@ -45,7 +45,7 @@ type graylogEntry struct {
 func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 	g, err := NewWriter(addr)
 	if err != nil {
-		logrus.WithField("err", err).Info("Can't create Gelf logger")
+		logrus.WithError(err).Error("Can't create Gelf logger")
 	}
 
 	host, err := os.Hostname()
@@ -69,7 +69,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 	g, err := NewWriter(addr)
 	if err != nil {
-		logrus.WithField("err", err).Info("Can't create Gelf logger")
+		logrus.WithError(err).Error("Can't create Gelf logger")
 	}
 
 	host, err := os.Hostname()
@@ -143,6 +143,10 @@ func (hook *GraylogHook) fire() {
 
 // sendEntry sends an entry to graylog synchronously
 func (hook *GraylogHook) sendEntry(entry graylogEntry) {
+	if hook.gelfLogger == nil {
+		fmt.Println("Can't connect to Graylog")
+		return
+	}
 	w := hook.gelfLogger
 
 	// remove trailing and leading whitespace

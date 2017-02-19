@@ -1,9 +1,13 @@
 # Logrus Graylog hook
 
+## 2.0.4 - 2017-02-19
+
+* Avoid panic if the hook can't dial Graylog (@chiffa-org / #21)
+
 ## 2.0.3 - 2016-11-30
 
-* Add support for extracting stacktraces from errors (@flimzy/#19)
-* Allow specifying the host instead of taking `os.Hostname` by default (@mweibel/#18)
+* Add support for extracting stacktraces from errors (@flimzy / #19)
+* Allow specifying the host instead of taking `os.Hostname` by default (@mweibel / #18)
 
 ## 2.0.2 - 2016-09-28
 

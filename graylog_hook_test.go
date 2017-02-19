@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"net"
 	"regexp"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 33 // Update this if code is updated above
+	lineExpected := 34 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -226,6 +227,22 @@ func TestSetWriter(t *testing.T) {
 	}
 }
 
+func TestWithInvalidGraylogAddr(t *testing.T) {
+	addr, err := net.ResolveUDPAddr("udp", "localhost:0")
+	if err != nil {
+		panic(err)
+	}
+	logrus.SetOutput(ioutil.Discard)
+	hook := NewGraylogHook(addr.String(), nil)
+
+	log := logrus.New()
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+
+	// Should not panic
+	log.WithError(errors.New("sample error")).Info("Testing sample error")
+}
+
 func TestStackTracer(t *testing.T) {
 	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
@@ -252,7 +269,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 240 // Update this if code is updated above
+	lineExpected := 257 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
