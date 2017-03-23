@@ -24,7 +24,7 @@ import (
 
 func main() {
     hook := graylog.NewGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
-    log.Hooks.Add(hook)
+    log.AddHook(hook)
     log.Info("some logging message")
 }
 ```
@@ -43,7 +43,7 @@ import (
 func main() {
     hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
-    log.Hooks.Add(hook)
+    log.AddHook(hook)
     log.Info("some logging message")
 }
 ```
@@ -67,6 +67,6 @@ And set this formatter as the new logging formatter:
 
 ```go
 log.Infof("Log messages are now sent to Graylog (udp://%s)", graylogAddr) // Give a hint why logs are empty
-log.Hooks.Add(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
+log.AddHook(graylog.NewGraylogHook(graylogAddr, "api", map[string]interface{}{})) // set graylogAddr accordingly
 log.SetFormatter(new(NullFormatter)) // Don't send logs to stdout
 ```
