@@ -39,6 +39,7 @@ type CompressType int
 const (
 	CompressGzip CompressType = iota
 	CompressZlib
+	NoCompress
 )
 
 // Message represents the contents of the GELF message.  It is gzipped
@@ -164,6 +165,18 @@ func (w *Writer) writeChunked(zBytes []byte) (err error) {
 	return nil
 }
 
+type bufferedWriter struct {
+	buffer *bytes.Buffer
+}
+
+func (bw bufferedWriter) Write(p []byte) (n int, err error) {
+	return bw.buffer.Write(p)
+}
+
+func (bw bufferedWriter) Close() error {
+	return nil
+}
+
 // WriteMessage sends the specified message to the GELF server
 // specified in the call to New().  It assumes all the fields are
 // filled out appropriately.  In general, clients will want to use
@@ -181,6 +194,8 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 		zw, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
 	case CompressZlib:
 		zw, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
+	case NoCompress:
+		zw = bufferedWriter{buffer: &zBuf}
 	default:
 		panic(fmt.Sprintf("unknown compression type %d",
 			w.CompressionType))
