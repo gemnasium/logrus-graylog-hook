@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 2.0.5 - 2017-04-14
+
+* Support uncompressed messages (@yuancheng-p / #24)
+
 ## 2.0.4 - 2017-02-19
 
 * Avoid panic if the hook can't dial Graylog (@chiffa-org / #21)
