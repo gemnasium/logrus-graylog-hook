@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 2.0.6 - 2017-06-01
+
+* Update import logrus path. See https://github.com/sirupsen/logrus/pull/384
+
 ## 2.0.5 - 2017-04-14
 
 * Support uncompressed messages (@yuancheng-p / #24)

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	pkgerrors "github.com/pkg/errors"
 )
 
