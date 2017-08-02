@@ -32,16 +32,6 @@ type Writer struct {
 	CompressionType  CompressType
 }
 
-// What compression type the writer should use when sending messages
-// to the graylog2 server
-type CompressType int
-
-const (
-	CompressGzip CompressType = iota
-	CompressZlib
-	NoCompress
-)
-
 // Message represents the contents of the GELF message.  It is gzipped
 // before sending.
 type Message struct {
