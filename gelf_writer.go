@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"sync"
 	"time"
 )
 
@@ -21,12 +22,11 @@ import (
 // messages to a graylog2 server, or data from a stream-oriented
 // interface (like the functions in log).
 type Writer struct {
-	conn     net.Conn
-	hostname string
-	Facility string // defaults to current process name
-	// CompressionLevel    int    // one of the consts from compress/flate
-	// CompressionType     CompressType
+	conn                net.Conn
+	hostname            string
+	Facility            string // defaults to current process name
 	compressionProvider CompressionPool
+	bufferPool          *sync.Pool
 }
 
 // Message represents the contents of the GELF message.  It is gzipped
@@ -83,6 +83,11 @@ func NewWriter(addr string, compressionType CompressType, comressionLevel int) (
 	}
 	w := &Writer{
 		compressionProvider: p,
+		bufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 	}
 
 	if w.conn, err = net.Dial("udp", addr); err != nil {
@@ -178,9 +183,10 @@ func (w *Writer) WriteMessage(m *Message) error {
 	if err != nil {
 		return err
 	}
-	var zBuf bytes.Buffer
 
-	zw := w.compressionProvider.Get(&zBuf)
+	zBuf := w.bufferPool.Get().(*bytes.Buffer)
+	defer w.bufferPool.Put(zBuf)
+	zw := w.compressionProvider.Get(zBuf)
 	if nil == zw {
 		return errors.New("invalid compression provider")
 	}

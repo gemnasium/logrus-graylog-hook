@@ -5,7 +5,6 @@ import (
 	"compress/flate"
 	"encoding/json"
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -19,32 +18,17 @@ const (
 	defaultBufSize          uint = 8192
 	defaultCompression           = CompressGzip
 	defaultCompressionLevel      = flate.BestSpeed
+	defaultTimeout               = 500 //500ms
 )
 
 // Hook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type Hook struct {
-	options     *Options
-	gelfLogger  *Writer
-	buf         chan graylogEntry
-	wg          sync.WaitGroup
-	mu          sync.RWMutex
-	synchronous bool
-	blacklist   map[string]bool
+	options    *Options
+	gelfLogger *Writer
+	buf        chan graylogEntry
+	wg         *sync.WaitGroup
+	closeChan  chan struct{}
 }
-
-// Options the additional options
-type Options struct {
-	Extra         map[string]interface{}
-	Host          string
-	Level         logrus.Level
-	Blacklist     map[string]bool
-	BufSize       uint
-	CompressType  CompressType
-	CompressLevel int
-}
-
-// LogOption define the functions you can used to change the options
-type LogOption func(*Options)
 
 // Graylog needs file and line params
 type graylogEntry struct {
@@ -53,55 +37,29 @@ type graylogEntry struct {
 	line int
 }
 
-// NewGraylogHook creates a hook to be added to an instance of logger.
+// NewGraylogHook create a hook to be added to an instance of logger
 func NewGraylogHook(addr string, ops ...LogOption) *Hook {
-	return NewGraylogHookEx(addr, false, ops...)
-}
-
-// NewAsyncGraylogHook creates a hook to be added to an instance of logger.
-// The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
-// before exiting to empty the log queue.
-func NewAsyncGraylogHook(addr string, ops ...LogOption) *Hook {
-	return NewGraylogHookEx(addr, true, ops...)
-}
-
-func getDefaultGraylogOptions() *Options {
-	logOptions := &Options{
-		Extra:         make(map[string]interface{}),
-		Level:         logrus.DebugLevel,
-		Blacklist:     make(map[string]bool),
-		BufSize:       defaultBufSize,
-		CompressType:  defaultCompression,
-		CompressLevel: defaultCompressionLevel,
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		host = "localhost"
-	}
-	logOptions.Host = host
-	return logOptions
-}
-
-// NewGraylogHookEx create a hook to be added to an instance of logger
-func NewGraylogHookEx(addr string, isAsync bool, ops ...LogOption) *Hook {
 	logOption := getDefaultGraylogOptions()
-	for _, o := range ops {
-		o(logOption)
+	if nil != ops {
+		for _, o := range ops {
+			o(logOption)
+		}
 	}
 	g, err := NewWriter(addr, logOption.CompressType, logOption.CompressLevel)
 	if err != nil {
 		logrus.WithError(err).Error("Can't create Gelf logger")
+		return nil
 	}
 
 	hook := &Hook{
-		options:     logOption,
-		gelfLogger:  g,
-		buf:         make(chan graylogEntry, logOption.BufSize),
-		synchronous: !isAsync,
+		options:    logOption,
+		gelfLogger: g,
+		buf:        make(chan graylogEntry, logOption.BufSize),
+		wg:         &sync.WaitGroup{},
+		closeChan:  make(chan struct{}),
 	}
-	if isAsync {
-		go hook.fire() // Log in background
-	}
+	hook.wg.Add(1)
+	go hook.fire()
 	return hook
 }
 
@@ -109,8 +67,6 @@ func NewGraylogHookEx(addr string, isAsync bool, ops ...LogOption) *Hook {
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to Graylog
 func (hook *Hook) Fire(entry *logrus.Entry) error {
-	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
-	defer hook.mu.RUnlock()
 
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
@@ -130,11 +86,12 @@ func (hook *Hook) Fire(entry *logrus.Entry) error {
 	}
 	gEntry := graylogEntry{newEntry, file, line}
 
-	if hook.synchronous {
-		hook.sendEntry(gEntry)
-	} else {
-		hook.wg.Add(1)
-		hook.buf <- gEntry
+	select {
+	case <-hook.closeChan: // when someone request to exit, then we drop the
+		fmt.Printf("logentry:%#v\n", entry)
+	case hook.buf <- gEntry:
+	case <-time.After(time.Duration(hook.options.Timeout) * time.Millisecond): // when it is timeout
+		fmt.Printf("GaylogHook: timeout , fail to process log entry")
 	}
 
 	return nil
@@ -143,15 +100,15 @@ func (hook *Hook) Fire(entry *logrus.Entry) error {
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncGraylogHook.
 func (hook *Hook) Flush() {
-	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
-	defer hook.mu.Unlock()
-
-	hook.wg.Wait()
+	// close the close chan will stop further logentry get into
+	close(hook.closeChan)
 	close(hook.buf)
+	hook.wg.Wait()
 }
 
 // fire will loop on the 'buf' channel, and write entries to graylog
 func (hook *Hook) fire() {
+	defer hook.wg.Done()
 	for {
 		entry, more := <-hook.buf // receive new entry on channel
 		if !more {
@@ -159,7 +116,6 @@ func (hook *Hook) fire() {
 			return
 		}
 		hook.sendEntry(entry)
-		hook.wg.Done()
 	}
 }
 
@@ -195,28 +151,32 @@ func (hook *Hook) sendEntry(entry graylogEntry) {
 		extra[k] = v
 	}
 	for k, v := range entry.Data {
-		if !hook.blacklist[k] {
-			extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
-			if k == logrus.ErrorKey {
-				asError, isError := v.(error)
-				_, isMarshaler := v.(json.Marshaler)
-				if isError && !isMarshaler {
-					extra[extraK] = newMarshalableError(asError)
-				} else {
-					extra[extraK] = v
-				}
-				if stackTrace := extractStackTrace(asError); stackTrace != nil {
-					extra[stackTraceKey] = fmt.Sprintf("%+v", stackTrace)
-					file, line := extractFileAndLine(stackTrace)
-					if file != "" && line != 0 {
-						entry.file = file
-						entry.line = line
-					}
-				}
+		// blacklist field, drop it
+		if hook.options.Blacklist[k] {
+			continue
+		}
+
+		extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
+		if k == logrus.ErrorKey {
+			asError, isError := v.(error)
+			_, isMarshaler := v.(json.Marshaler)
+			if isError && !isMarshaler {
+				extra[extraK] = newMarshalableError(asError)
 			} else {
 				extra[extraK] = v
 			}
+			if stackTrace := extractStackTrace(asError); stackTrace != nil {
+				extra[stackTraceKey] = fmt.Sprintf("%+v", stackTrace)
+				file, line := extractFileAndLine(stackTrace)
+				if file != "" && line != 0 {
+					entry.file = file
+					entry.line = line
+				}
+			}
+		} else {
+			extra[extraK] = v
 		}
+
 	}
 
 	m := Message{
@@ -246,16 +206,6 @@ func (hook *Hook) Levels() []logrus.Level {
 	}
 	return levels
 }
-
-// Blacklist create a blacklist map to filter some message keys.
-// This useful when you want your application to log extra fields locally
-// but don't want graylog to store them.
-// func (hook *GraylogHook) Blacklist(b []string) {
-// 	hook.blacklist = make(map[string]bool)
-// 	for _, elem := range b {
-// 		hook.blacklist[elem] = true
-// 	}
-// }
 
 // getCaller returns the filename and the line info of a function
 // further down in the call stack.  Passing 0 in as callDepth would
