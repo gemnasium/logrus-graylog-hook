@@ -2,8 +2,8 @@ package graylog
 
 import (
 	"bytes"
+	"compress/flate"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -14,18 +14,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const StackTraceKey = "_stacktrace"
+const (
+	stackTraceKey                = "_stacktrace"
+	defaultBufSize          uint = 8192
+	defaultCompression           = CompressGzip
+	defaultCompressionLevel      = flate.BestSpeed
+)
 
-// Set graylog.BufSize = <value> _before_ calling NewGraylogHook
-// Once the buffer is full, logging will start blocking, waiting for slots to
-// be available in the queue.
-var BufSize uint = 8192
-
-// GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
-type GraylogHook struct {
-	Extra       map[string]interface{}
-	Host        string
-	Level       logrus.Level
+// Hook to send logs to a logging service compatible with the Graylog API and the GELF format.
+type Hook struct {
+	options     *Options
 	gelfLogger  *Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
@@ -33,6 +31,20 @@ type GraylogHook struct {
 	synchronous bool
 	blacklist   map[string]bool
 }
+
+// Options the additional options
+type Options struct {
+	Extra         map[string]interface{}
+	Host          string
+	Level         logrus.Level
+	Blacklist     map[string]bool
+	BufSize       uint
+	CompressType  CompressType
+	CompressLevel int
+}
+
+// LogOption define the functions you can used to change the options
+type LogOption func(*Options)
 
 // Graylog needs file and line params
 type graylogEntry struct {
@@ -42,56 +54,61 @@ type graylogEntry struct {
 }
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
-func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := NewWriter(addr)
-	if err != nil {
-		logrus.WithError(err).Error("Can't create Gelf logger")
-	}
-
-	host, err := os.Hostname()
-	if err != nil {
-		host = "localhost"
-	}
-
-	hook := &GraylogHook{
-		Host:        host,
-		Extra:       extra,
-		Level:       logrus.DebugLevel,
-		gelfLogger:  g,
-		synchronous: true,
-	}
-	return hook
+func NewGraylogHook(addr string, ops ...LogOption) *Hook {
+	return NewGraylogHookEx(addr, false, ops...)
 }
 
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
-func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := NewWriter(addr)
-	if err != nil {
-		logrus.WithError(err).Error("Can't create Gelf logger")
-	}
+func NewAsyncGraylogHook(addr string, ops ...LogOption) *Hook {
+	return NewGraylogHookEx(addr, true, ops...)
+}
 
+func getDefaultGraylogOptions() *Options {
+	logOptions := &Options{
+		Extra:         make(map[string]interface{}),
+		Level:         logrus.DebugLevel,
+		Blacklist:     make(map[string]bool),
+		BufSize:       defaultBufSize,
+		CompressType:  defaultCompression,
+		CompressLevel: defaultCompressionLevel,
+	}
 	host, err := os.Hostname()
 	if err != nil {
 		host = "localhost"
 	}
+	logOptions.Host = host
+	return logOptions
+}
 
-	hook := &GraylogHook{
-		Host:       host,
-		Extra:      extra,
-		Level:      logrus.DebugLevel,
-		gelfLogger: g,
-		buf:        make(chan graylogEntry, BufSize),
+// NewGraylogHookEx create a hook to be added to an instance of logger
+func NewGraylogHookEx(addr string, isAsync bool, ops ...LogOption) *Hook {
+	logOption := getDefaultGraylogOptions()
+	for _, o := range ops {
+		o(logOption)
 	}
-	go hook.fire() // Log in background
+	g, err := NewWriter(addr, logOption.CompressType, logOption.CompressLevel)
+	if err != nil {
+		logrus.WithError(err).Error("Can't create Gelf logger")
+	}
+
+	hook := &Hook{
+		options:     logOption,
+		gelfLogger:  g,
+		buf:         make(chan graylogEntry, logOption.BufSize),
+		synchronous: !isAsync,
+	}
+	if isAsync {
+		go hook.fire() // Log in background
+	}
 	return hook
 }
 
 // Fire is called when a log event is fired.
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to Graylog
-func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
+func (hook *Hook) Fire(entry *logrus.Entry) error {
 	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
 	defer hook.mu.RUnlock()
 
@@ -125,24 +142,29 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncGraylogHook.
-func (hook *GraylogHook) Flush() {
+func (hook *Hook) Flush() {
 	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
 	defer hook.mu.Unlock()
 
 	hook.wg.Wait()
+	close(hook.buf)
 }
 
 // fire will loop on the 'buf' channel, and write entries to graylog
-func (hook *GraylogHook) fire() {
+func (hook *Hook) fire() {
 	for {
-		entry := <-hook.buf // receive new entry on channel
+		entry, more := <-hook.buf // receive new entry on channel
+		if !more {
+			// channel closed
+			return
+		}
 		hook.sendEntry(entry)
 		hook.wg.Done()
 	}
 }
 
 // sendEntry sends an entry to graylog synchronously
-func (hook *GraylogHook) sendEntry(entry graylogEntry) {
+func (hook *Hook) sendEntry(entry graylogEntry) {
 	if hook.gelfLogger == nil {
 		fmt.Println("Can't connect to Graylog")
 		return
@@ -168,7 +190,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 	// Don't modify entry.Data directly, as the entry will used after this hook was fired
 	extra := map[string]interface{}{}
 	// Merge extra fields
-	for k, v := range hook.Extra {
+	for k, v := range hook.options.Extra {
 		k = fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."
 		extra[k] = v
 	}
@@ -184,7 +206,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 					extra[extraK] = v
 				}
 				if stackTrace := extractStackTrace(asError); stackTrace != nil {
-					extra[StackTraceKey] = fmt.Sprintf("%+v", stackTrace)
+					extra[stackTraceKey] = fmt.Sprintf("%+v", stackTrace)
 					file, line := extractFileAndLine(stackTrace)
 					if file != "" && line != 0 {
 						entry.file = file
@@ -199,7 +221,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 
 	m := Message{
 		Version:  "1.1",
-		Host:     hook.Host,
+		Host:     hook.options.Host,
 		Short:    string(short),
 		Full:     string(full),
 		TimeUnix: float64(time.Now().UnixNano()/1000000) / 1000.,
@@ -215,10 +237,10 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 }
 
 // Levels returns the available logging levels.
-func (hook *GraylogHook) Levels() []logrus.Level {
+func (hook *Hook) Levels() []logrus.Level {
 	levels := []logrus.Level{}
 	for _, level := range logrus.AllLevels {
-		if level <= hook.Level {
+		if level <= hook.options.Level {
 			levels = append(levels, level)
 		}
 	}
@@ -228,26 +250,12 @@ func (hook *GraylogHook) Levels() []logrus.Level {
 // Blacklist create a blacklist map to filter some message keys.
 // This useful when you want your application to log extra fields locally
 // but don't want graylog to store them.
-func (hook *GraylogHook) Blacklist(b []string) {
-	hook.blacklist = make(map[string]bool)
-	for _, elem := range b {
-		hook.blacklist[elem] = true
-	}
-}
-
-// SetWriter sets the hook Gelf Writer
-func (hook *GraylogHook) SetWriter(w *Writer) error {
-	if w == nil {
-		return errors.New("writer can't be nil")
-	}
-	hook.gelfLogger = w
-	return nil
-}
-
-// Writer returns the logger Gelf Writer
-func (hook *GraylogHook) Writer() *Writer {
-	return hook.gelfLogger
-}
+// func (hook *GraylogHook) Blacklist(b []string) {
+// 	hook.blacklist = make(map[string]bool)
+// 	for _, elem := range b {
+// 		hook.blacklist[elem] = true
+// 	}
+// }
 
 // getCaller returns the filename and the line info of a function
 // further down in the call stack.  Passing 0 in as callDepth would

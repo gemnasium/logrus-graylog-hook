@@ -24,8 +24,8 @@ const (
 
 // CompressionPool provide the compression writer as need
 type CompressionPool interface {
-	Get() interface{}
-	Put(c interface{})
+	Get(buf *bytes.Buffer) io.WriteCloser
+	Put(c io.WriteCloser)
 }
 
 type compressionPool struct {
@@ -61,17 +61,32 @@ func newCompressionPool(t CompressType, level int) (CompressionPool, error) {
 						fmt.Printf("Error:fail to create zlib writer,err:%s\n", err)
 						return nil
 					}
-				case NoCompress:
-					zw = bufferedWriter{buffer: &zBuf}
 				}
 				return zw
 			},
 		},
 	}, nil
 }
-func (cp *compressionPool) Get() interface{} {
-	return nil
+func (cp *compressionPool) Get(buf *bytes.Buffer) io.WriteCloser {
+	switch cp.compressType {
+	case CompressGzip:
+		gzipw := cp.p.Get().(*gzip.Writer)
+		gzipw.Reset(buf)
+		return gzipw
+	case CompressZlib:
+		zlibw := cp.p.Get().(*zlib.Writer)
+		zlibw.Reset(buf)
+		return zlibw
+	case NoCompress:
+		return &bufferedWriter{buffer: buf}
+	default:
+		return nil
+	}
+
 }
-func (cp *compressionPool) Put(c interface{}) {
-	cp.p.Put(c)
+func (cp *compressionPool) Put(c io.WriteCloser) {
+	switch cp.compressType {
+	case CompressGzip, CompressZlib:
+		cp.p.Put(c)
+	}
 }
