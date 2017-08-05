@@ -185,6 +185,7 @@ func (w *Writer) WriteMessage(m *Message) error {
 	}
 
 	zBuf := w.bufferPool.Get().(*bytes.Buffer)
+	zBuf.Reset()
 	defer w.bufferPool.Put(zBuf)
 	zw := w.compressionProvider.Get(zBuf)
 	if nil == zw {

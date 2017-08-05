@@ -164,16 +164,16 @@ func TestParallelLogging(t *testing.T) {
 
 	panicked := false
 
-	// recordPanic := func() {
-	// 	if r := recover(); r != nil {
-	// 		panicked = true
-	// 	}
-	// }
+	recordPanic := func() {
+		if r := recover(); r != nil {
+			panicked = true
+		}
+	}
 
 	go func() {
 		// Start draining messages from GELF
 		go func() {
-			//defer recordPanic()
+			defer recordPanic()
 			for {
 				select {
 				case <-quit:
@@ -185,9 +185,9 @@ func TestParallelLogging(t *testing.T) {
 		}()
 
 		// Log into our hook in parallel
-		for i := 0; i < 1; i++ {
+		for i := 0; i < 10; i++ {
 			go func() {
-				//defer recordPanic()
+				defer recordPanic()
 				for {
 					select {
 					case <-quit:
