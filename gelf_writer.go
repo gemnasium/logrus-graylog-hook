@@ -6,11 +6,9 @@ package graylog
 
 import (
 	"bytes"
-	"compress/flate"
-	"compress/gzip"
-	"compress/zlib"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -24,23 +22,12 @@ import (
 // messages to a graylog2 server, or data from a stream-oriented
 // interface (like the functions in log).
 type Writer struct {
-	mu               sync.Mutex
-	conn             net.Conn
-	hostname         string
-	Facility         string // defaults to current process name
-	CompressionLevel int    // one of the consts from compress/flate
-	CompressionType  CompressType
+	conn                net.Conn
+	hostname            string
+	Facility            string // defaults to current process name
+	compressionProvider CompressionPool
+	bufferPool          *sync.Pool
 }
-
-// What compression type the writer should use when sending messages
-// to the graylog2 server
-type CompressType int
-
-const (
-	CompressGzip CompressType = iota
-	CompressZlib
-	NoCompress
-)
 
 // Message represents the contents of the GELF message.  It is gzipped
 // before sending.
@@ -85,13 +72,23 @@ func numChunks(b []byte) int {
 	return len(b)/chunkedDataLen + 1
 }
 
-// New returns a new GELF Writer.  This writer can be used to send the
+// NewWriter returns a new GELF Writer.  This writer can be used to send the
 // output of the standard Go log functions to a central GELF server by
 // passing it to log.SetOutput()
-func NewWriter(addr string) (*Writer, error) {
-	var err error
-	w := new(Writer)
-	w.CompressionLevel = flate.BestSpeed
+func NewWriter(addr string, compressionType CompressType, comressionLevel int) (*Writer, error) {
+
+	p, err := newCompressionPool(compressionType, comressionLevel)
+	if nil != err {
+		return nil, err
+	}
+	w := &Writer{
+		compressionProvider: p,
+		bufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
+	}
 
 	if w.conn, err = net.Dial("udp", addr); err != nil {
 		return nil, err
@@ -181,32 +178,27 @@ func (bw bufferedWriter) Close() error {
 // specified in the call to New().  It assumes all the fields are
 // filled out appropriately.  In general, clients will want to use
 // Write, rather than WriteMessage.
-func (w *Writer) WriteMessage(m *Message) (err error) {
+func (w *Writer) WriteMessage(m *Message) error {
 	mBytes, err := json.Marshal(m)
 	if err != nil {
-		return
+		return err
 	}
 
-	var zBuf bytes.Buffer
-	var zw io.WriteCloser
-	switch w.CompressionType {
-	case CompressGzip:
-		zw, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
-	case CompressZlib:
-		zw, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
-	case NoCompress:
-		zw = bufferedWriter{buffer: &zBuf}
-	default:
-		panic(fmt.Sprintf("unknown compression type %d",
-			w.CompressionType))
+	zBuf := w.bufferPool.Get().(*bytes.Buffer)
+	zBuf.Reset()
+	defer w.bufferPool.Put(zBuf)
+	zw := w.compressionProvider.Get(zBuf)
+	if nil == zw {
+		return errors.New("invalid compression provider")
 	}
-	if err != nil {
-		return
-	}
+	defer w.compressionProvider.Put(zw)
+
 	if _, err = zw.Write(mBytes); err != nil {
-		return
+		return err
 	}
-	zw.Close()
+	if err := zw.Close(); nil != err {
+		return err
+	}
 
 	zBytes := zBuf.Bytes()
 	if numChunks(zBytes) > 1 {
@@ -215,7 +207,7 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 
 	n, err := w.conn.Write(zBytes)
 	if err != nil {
-		return
+		return err
 	}
 	if n != len(zBytes) {
 		return fmt.Errorf("bad write (%d/%d)", n, len(zBytes))

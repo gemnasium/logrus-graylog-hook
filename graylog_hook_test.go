@@ -1,7 +1,6 @@
 package graylog
 
 import (
-	"compress/flate"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -11,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	pkgerrors "github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const SyslogInfoLevel = 6
@@ -23,9 +22,11 @@ func TestWritingToUDP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
-	hook.Host = "testing.local"
-	hook.Blacklist([]string{"filterMe"})
+	hook := NewGraylogHook(r.Addr(),
+		WithExtra(map[string]interface{}{"foo": "bar"}),
+		WithHost("testing.local"),
+		WithBlackList([]string{"filterMe"}))
+
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
@@ -65,7 +66,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 34 // Update this if code is updated above
+	lineExpected := 35 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -84,12 +85,12 @@ func TestWritingToUDP(t *testing.T) {
 	}
 }
 
-func testErrorLevelReporting(t *testing.T) {
+func TestErrorLevelReporting(t *testing.T) {
 	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
+	hook := NewGraylogHook(r.Addr(), WithExtra(map[string]interface{}{"foo": "bar"}))
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
@@ -99,10 +100,10 @@ func testErrorLevelReporting(t *testing.T) {
 	log.Error(msgData)
 
 	msg, err := r.ReadMessage()
-
 	if err != nil {
 		t.Errorf("ReadMessage: %s", err)
 	}
+	t.Logf("msg:%#v\n", msg)
 
 	if msg.Short != "test message" {
 		t.Errorf("msg.Short: expected %s, got %s", msgData, msg.Full)
@@ -112,7 +113,7 @@ func testErrorLevelReporting(t *testing.T) {
 		t.Errorf("msg.Full: expected %s, got %s", msgData, msg.Full)
 	}
 
-	if msg.Level != SyslogErrorLevel {
+	if msg.Level != 4 {
 		t.Errorf("msg.Level: expected: %d, got %d)", SyslogErrorLevel, msg.Level)
 	}
 }
@@ -122,7 +123,7 @@ func TestJSONErrorMarshalling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+	hook := NewGraylogHook(r.Addr())
 
 	log := logrus.New()
 	log.Out = ioutil.Discard
@@ -151,12 +152,11 @@ func TestParallelLogging(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), nil)
-	asyncHook := NewAsyncGraylogHook(r.Addr(), nil)
+
+	asyncHook := NewGraylogHook(r.Addr())
 
 	log := logrus.New()
 	log.Out = ioutil.Discard
-	log.Hooks.Add(hook)
 	log.Hooks.Add(asyncHook)
 
 	quit := make(chan struct{})
@@ -207,40 +207,16 @@ func TestParallelLogging(t *testing.T) {
 	}
 }
 
-func TestSetWriter(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewReader: %s", err)
-	}
-	hook := NewGraylogHook(r.Addr(), nil)
-
-	w := hook.Writer()
-	w.CompressionLevel = flate.BestCompression
-	hook.SetWriter(w)
-
-	if hook.Writer().CompressionLevel != flate.BestCompression {
-		t.Error("Writer was not set correctly")
-	}
-
-	if hook.SetWriter(nil) == nil {
-		t.Error("Setting a nil writter should raise an error")
-	}
-}
-
 func TestWithInvalidGraylogAddr(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", "localhost:0")
 	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 	logrus.SetOutput(ioutil.Discard)
-	hook := NewGraylogHook(addr.String(), nil)
-
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	log.Hooks.Add(hook)
-
-	// Should not panic
-	log.WithError(errors.New("sample error")).Info("Testing sample error")
+	hook := NewGraylogHook(addr.String())
+	if nil != hook {
+		t.Error("We expect the return to be nil")
+	}
 }
 
 func TestStackTracer(t *testing.T) {
@@ -248,7 +224,7 @@ func TestStackTracer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
 	}
-	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+	hook := NewGraylogHook(r.Addr())
 
 	log := logrus.New()
 	log.Out = ioutil.Discard
@@ -269,12 +245,12 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 257 // Update this if code is updated above
+	lineExpected := 233 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
-	stacktraceI, ok := msg.Extra[StackTraceKey]
+	stacktraceI, ok := msg.Extra[stackTraceKey]
 	if !ok {
 		t.Error("Stack Trace not found in result")
 	}
