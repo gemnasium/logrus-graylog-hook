@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	pkgerrors "github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const SyslogInfoLevel = 6
@@ -291,5 +291,43 @@ runtime.*
 	/.*/runtime/.*:\d+$`)
 	if !stacktraceRE.MatchString(stacktrace) {
 		t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
+	}
+}
+
+func TestLogrusLevelToSylog(t *testing.T) {
+	// Syslog constants
+	const (
+		LOG_EMERG   = 0 /* system is unusable */
+		LOG_ALERT   = 1 /* action must be taken immediately */
+		LOG_CRIT    = 2 /* critical conditions */
+		LOG_ERR     = 3 /* error conditions */
+		LOG_WARNING = 4 /* warning conditions */
+		LOG_NOTICE  = 5 /* normal but significant condition */
+		LOG_INFO    = 6 /* informational */
+		LOG_DEBUG   = 7 /* debug-level messages */
+	)
+
+	if logrusLevelToSylog(logrus.DebugLevel) != LOG_DEBUG {
+		t.Error("logrusLevelToSylog(DebugLevel) != LOG_DEBUG")
+	}
+
+	if logrusLevelToSylog(logrus.InfoLevel) != LOG_INFO {
+		t.Error("logrusLevelToSylog(InfoLevel) != LOG_INFO")
+	}
+
+	if logrusLevelToSylog(logrus.WarnLevel) != LOG_WARNING {
+		t.Error("logrusLevelToSylog(WarnLevel) != LOG_WARNING")
+	}
+
+	if logrusLevelToSylog(logrus.ErrorLevel) != LOG_ERR {
+		t.Error("logrusLevelToSylog(ErrorLevel) != LOG_ERR")
+	}
+
+	if logrusLevelToSylog(logrus.FatalLevel) != LOG_CRIT {
+		t.Error("logrusLevelToSylog(FatalLevel) != LOG_CRIT")
+	}
+
+	if logrusLevelToSylog(logrus.PanicLevel) != LOG_ALERT {
+		t.Error("logrusLevelToSylog(PanicLevel) != LOG_ALERT")
 	}
 }

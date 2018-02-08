@@ -141,6 +141,16 @@ func (hook *GraylogHook) fire() {
 	}
 }
 
+func logrusLevelToSylog(level logrus.Level) int32 {
+	// Till warn, logrus levels are lower than syslog by 1
+	// (logrus has no equivalent of syslog LOG_NOTICE)
+	if level <= logrus.WarnLevel {
+		return int32(level) + 1
+	}
+	// From info, logrus levels are lower than syslog by 2
+	return int32(level) + 2
+}
+
 // sendEntry sends an entry to graylog synchronously
 func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 	if hook.gelfLogger == nil {
@@ -163,7 +173,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		full = p
 	}
 
-	level := int32(entry.Level) + 2 // logrus levels are lower than syslog by 2
+	level := logrusLevelToSylog(entry.Level)
 
 	// Don't modify entry.Data directly, as the entry will used after this hook was fired
 	extra := map[string]interface{}{}
