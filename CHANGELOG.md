@@ -1,5 +1,10 @@
 # Logrus Graylog hook
 
+## 2.0.7 - 2018-02-09
+
+* Fix reported levels to match syslog levels (@maxatome / #27)
+* Removed go 1.3 support
+
 ## 2.0.6 - 2017-06-01
 
 * Update import logrus path. See https://github.com/sirupsen/logrus/pull/384
