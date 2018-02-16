@@ -32,6 +32,7 @@ type GraylogHook struct {
 	mu          sync.RWMutex
 	synchronous bool
 	blacklist   map[string]bool
+	NeverBlock  bool
 }
 
 // Graylog needs file and line params
@@ -113,14 +114,26 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	}
 	gEntry := graylogEntry{newEntry, file, line}
 
-	if hook.synchronous {
-		hook.sendEntry(gEntry)
-	} else {
-		hook.wg.Add(1)
-		hook.buf <- gEntry
-	}
+	hook.send(gEntry)
 
 	return nil
+}
+
+func (hook *GraylogHook) send(gEntry graylogEntry) {
+	if hook.synchronous {
+		hook.sendEntry(gEntry)
+		return
+	}
+	hook.wg.Add(1)
+	if !hook.NeverBlock {
+		hook.buf <- gEntry
+		return
+	}
+	select {
+	case hook.buf <- gEntry:
+	default:
+		// Drop the log message
+	}
 }
 
 // Flush waits for the log queue to be empty.
@@ -134,8 +147,7 @@ func (hook *GraylogHook) Flush() {
 
 // fire will loop on the 'buf' channel, and write entries to graylog
 func (hook *GraylogHook) fire() {
-	for {
-		entry := <-hook.buf // receive new entry on channel
+	for entry := range hook.buf {
 		hook.sendEntry(entry)
 		hook.wg.Done()
 	}
