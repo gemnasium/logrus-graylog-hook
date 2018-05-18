@@ -21,17 +21,20 @@ const StackTraceKey = "_stacktrace"
 // be available in the queue.
 var BufSize uint = 8192
 
+var preDifinedIgnoreSuffix = []string{"logrus/hooks.go", "logrus/entry.go", "logrus/logger.go", "logrus/exported.go", "asm_amd64.s"}
+
 // GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type GraylogHook struct {
-	Extra       map[string]interface{}
-	Host        string
-	Level       logrus.Level
-	gelfLogger  *Writer
-	buf         chan graylogEntry
-	wg          sync.WaitGroup
-	mu          sync.RWMutex
-	synchronous bool
-	blacklist   map[string]bool
+	Extra        map[string]interface{}
+	Host         string
+	Level        logrus.Level
+	gelfLogger   *Writer
+	buf          chan graylogEntry
+	wg           sync.WaitGroup
+	mu           sync.RWMutex
+	synchronous  bool
+	blacklist    map[string]bool
+	ignoreSuffix []string
 }
 
 // Graylog needs file and line params
@@ -60,6 +63,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 		gelfLogger:  g,
 		synchronous: true,
 	}
+	hook.AddIgnoreSuffix(preDifinedIgnoreSuffix...)
 	return hook
 }
 
@@ -84,8 +88,17 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 		gelfLogger: g,
 		buf:        make(chan graylogEntry, BufSize),
 	}
+	hook.AddIgnoreSuffix(preDifinedIgnoreSuffix...)
 	go hook.fire() // Log in background
 	return hook
+}
+
+//AddIgnoreSuffix adds a file to the suffixes to ignore the call stack of this file
+func (hook *GraylogHook) AddIgnoreSuffix(suffix ...string) {
+	hook.mu.RLock()
+	defer hook.mu.RUnlock()
+	hook.ignoreSuffix = append(hook.ignoreSuffix, suffix...)
+	hook.gelfLogger.addIgnoreSuffix(suffix...)
 }
 
 // Fire is called when a log event is fired.
@@ -97,7 +110,7 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 
 	// get caller file and line here, it won't be available inside the goroutine
 	// 1 for the function that called us.
-	file, line := getCallerIgnoringLogMulti(1)
+	file, line := getCallerIgnoringLogMulti(1, hook.ignoreSuffix)
 
 	newData := make(map[string]interface{})
 	for k, v := range entry.Data {
@@ -289,7 +302,7 @@ outer:
 	return
 }
 
-func getCallerIgnoringLogMulti(callDepth int) (string, int) {
+func getCallerIgnoringLogMulti(callDepth int, ignoreSuffix []string) (string, int) {
 	// the +1 is to ignore this (getCallerIgnoringLogMulti) frame
-	return getCaller(callDepth+1, "logrus/hooks.go", "logrus/entry.go", "logrus/logger.go", "logrus/exported.go", "asm_amd64.s")
+	return getCaller(callDepth+1, ignoreSuffix...)
 }
