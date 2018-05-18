@@ -30,6 +30,7 @@ type Writer struct {
 	Facility         string // defaults to current process name
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
+	ignoreSuffix     []string
 }
 
 // What compression type the writer should use when sending messages
@@ -241,7 +242,7 @@ func (w *Writer) Warning(m string) (err error)
 func (w *Writer) Write(p []byte) (n int, err error) {
 
 	// 1 for the function that called us.
-	file, line := getCallerIgnoringLogMulti(1)
+	file, line := getCallerIgnoringLogMulti(1, w.ignoreSuffix)
 
 	// remove trailing and leading whitespace
 	p = bytes.TrimSpace(p)
@@ -336,4 +337,11 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
+}
+
+//addIgnoreSuffix adds a file to the suffixes to ignore the call stack of this file
+func (w *Writer) addIgnoreSuffix(suffix ...string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ignoreSuffix = append(w.ignoreSuffix, suffix[:]...)
 }
