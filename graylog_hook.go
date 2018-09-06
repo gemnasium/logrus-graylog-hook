@@ -26,6 +26,7 @@ type GraylogHook struct {
 	Extra       map[string]interface{}
 	Host        string
 	Level       logrus.Level
+	LevelLower  bool // when enabled it will select the included level and less important ones
 	gelfLogger  *Writer
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
@@ -228,7 +229,13 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 func (hook *GraylogHook) Levels() []logrus.Level {
 	levels := []logrus.Level{}
 	for _, level := range logrus.AllLevels {
-		if level <= hook.Level {
+		includeLevel := false
+		if hook.LevelLower {
+			includeLevel = level >= hook.Level
+		} else {
+			includeLevel = level <= hook.Level
+		}
+		if includeLevel {
 			levels = append(levels, level)
 		}
 	}
