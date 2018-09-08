@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -330,4 +331,21 @@ func TestLogrusLevelToSylog(t *testing.T) {
 	if logrusLevelToSylog(logrus.PanicLevel) != LOG_ALERT {
 		t.Error("logrusLevelToSylog(PanicLevel) != LOG_ALERT")
 	}
+}
+
+func TestHookAddIgnoreSuffix(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), nil)
+
+	if len(hook.ignoreSuffix) != len(preDefinedIgnoreSuffix) {
+		t.Errorf("ingnoreSuffix: expected len %d, got %d", len(preDefinedIgnoreSuffix), len(hook.ignoreSuffix))
+	}
+
+	if !reflect.DeepEqual(hook.ignoreSuffix, preDefinedIgnoreSuffix) {
+		t.Errorf("ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, preDefinedIgnoreSuffix)
+	}
+
 }
