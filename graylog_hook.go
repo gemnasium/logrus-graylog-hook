@@ -63,6 +63,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 		gelfLogger:  g,
 		synchronous: true,
 	}
+	//TODO: test it
 	hook.AddIgnoreSuffix(preDefinedIgnoreSuffix...)
 	return hook
 }

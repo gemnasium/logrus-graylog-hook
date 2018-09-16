@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
+	"path"
 	"reflect"
 	"regexp"
 	"strings"
@@ -348,4 +349,30 @@ func TestHookAddIgnoreSuffix(t *testing.T) {
 		t.Errorf("ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, preDefinedIgnoreSuffix)
 	}
 
+	hook.AddIgnoreSuffix("/test1", "test2")
+	want := append(preDefinedIgnoreSuffix[:], "/test1", "test2")
+	if !reflect.DeepEqual(hook.ignoreSuffix, want) {
+		t.Errorf("ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, want)
+	}
+
+	if !reflect.DeepEqual(hook.ignoreSuffix, hook.gelfLogger.ignoreSuffix) {
+		t.Errorf("gelfLogger.ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, hook.gelfLogger.ignoreSuffix)
+	}
+}
+
+func TestGetCallerIgnoringLogMulti(t *testing.T) {
+	file, line := getCallerIgnoringLogMulti(1, nil)
+	if file == "???" {
+		t.Fatal("Unxpected file ???")
+	}
+	suffix := []string{path.Base(file)}
+
+	file2, line2 := getCallerIgnoringLogMulti(1, suffix)
+	if file == file2 {
+		t.Errorf("getCallerIgnoringLogMulti: Unexpected file %s", file2)
+	}
+
+	if line == line2 {
+		t.Errorf("getCallerIgnoringLogMulti: Unexpected line %d", line2)
+	}
 }
