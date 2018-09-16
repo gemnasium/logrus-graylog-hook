@@ -67,7 +67,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 34 // Update this if code is updated above
+	lineExpected := 36 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -271,7 +271,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 257 // Update this if code is updated above
+	lineExpected := 259 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
