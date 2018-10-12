@@ -30,6 +30,9 @@ type Writer struct {
 	Facility         string // defaults to current process name
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
+
+	gzipWriter *gzip.Writer
+	zlibWriter *zlib.Writer
 }
 
 // What compression type the writer should use when sending messages
@@ -189,11 +192,20 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 
 	var zBuf bytes.Buffer
 	var zw io.WriteCloser
+
 	switch w.CompressionType {
 	case CompressGzip:
-		zw, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
+		if w.gzipWriter == nil {
+			w.gzipWriter, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
+		}
+		w.gzipWriter.Reset(&zBuf)
+		zw = w.gzipWriter
 	case CompressZlib:
-		zw, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
+		if w.zlibWriter == nil {
+			w.zlibWriter, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
+		}
+		w.zlibWriter.Reset(&zBuf)
+		zw = w.zlibWriter
 	case NoCompress:
 		zw = bufferedWriter{buffer: &zBuf}
 	default:
@@ -203,6 +215,7 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 	if err != nil {
 		return
 	}
+
 	if _, err = zw.Write(mBytes); err != nil {
 		return
 	}
