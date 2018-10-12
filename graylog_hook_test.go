@@ -284,11 +284,11 @@ func TestStackTracer(t *testing.T) {
 	}
 	stacktraceRE := regexp.MustCompile(`^
 .+/logrus-graylog-hook(%2ev2)?.TestStackTracer
-	/.+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
+	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
 testing.tRunner
-	/.*/testing.go:\d+
+	(/|[A-Z]:/).*/testing.go:\d+
 runtime.*
-	/.*/runtime/.*:\d+$`)
+	(/|[A-Z]:/).*/runtime/.*:\d+$`)
 	if !stacktraceRE.MatchString(stacktrace) {
 		t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
 	}
