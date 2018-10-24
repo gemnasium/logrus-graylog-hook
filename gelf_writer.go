@@ -202,7 +202,7 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 
 	var zBuf bytes.Buffer
 
-	//	If compression settings have changed, a new writer is required.
+	// . If compression settings have changed, a new writer is required.
 	if w.zwCompressionType != w.CompressionType || w.zwCompressionLevel != w.CompressionLevel {
 		w.zw = nil
 	}
