@@ -31,8 +31,9 @@ type Writer struct {
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
 
-	gzipWriter *gzip.Writer
-	zlibWriter *zlib.Writer
+	zw                 writerCloserResetter
+	zwCompressionLevel int
+	zwCompressionType  CompressType
 }
 
 // What compression type the writer should use when sending messages
@@ -169,7 +170,7 @@ func (w *Writer) writeChunked(zBytes []byte) (err error) {
 }
 
 type bufferedWriter struct {
-	buffer *bytes.Buffer
+	buffer io.Writer
 }
 
 func (bw bufferedWriter) Write(p []byte) (n int, err error) {
@@ -178,6 +179,15 @@ func (bw bufferedWriter) Write(p []byte) (n int, err error) {
 
 func (bw bufferedWriter) Close() error {
 	return nil
+}
+
+func (bw *bufferedWriter) Reset(w io.Writer) {
+	bw.buffer = w
+}
+
+type writerCloserResetter interface {
+	io.WriteCloser
+	Reset(w io.Writer)
 }
 
 // WriteMessage sends the specified message to the GELF server
@@ -191,35 +201,38 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 	}
 
 	var zBuf bytes.Buffer
-	var zw io.WriteCloser
+
+	//	If compression settings have changed, a new writer is required.
+	if w.zwCompressionType != w.CompressionType || w.zwCompressionLevel != w.CompressionLevel {
+		w.zw = nil
+	}
 
 	switch w.CompressionType {
 	case CompressGzip:
-		if w.gzipWriter == nil {
-			w.gzipWriter, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
+		if w.zw == nil {
+			w.zw, err = gzip.NewWriterLevel(&zBuf, w.CompressionLevel)
 		}
-		w.gzipWriter.Reset(&zBuf)
-		zw = w.gzipWriter
 	case CompressZlib:
-		if w.zlibWriter == nil {
-			w.zlibWriter, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
+		if w.zw == nil {
+			w.zw, err = zlib.NewWriterLevel(&zBuf, w.CompressionLevel)
 		}
-		w.zlibWriter.Reset(&zBuf)
-		zw = w.zlibWriter
 	case NoCompress:
-		zw = bufferedWriter{buffer: &zBuf}
+		w.zw = &bufferedWriter{}
 	default:
 		panic(fmt.Sprintf("unknown compression type %d",
 			w.CompressionType))
 	}
+
 	if err != nil {
 		return
 	}
 
-	if _, err = zw.Write(mBytes); err != nil {
+	w.zw.Reset(&zBuf)
+
+	if _, err = w.zw.Write(mBytes); err != nil {
 		return
 	}
-	zw.Close()
+	w.zw.Close()
 
 	zBytes := zBuf.Bytes()
 	if numChunks(zBytes) > 1 {
