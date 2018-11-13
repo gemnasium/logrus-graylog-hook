@@ -18,7 +18,7 @@ package main
 
 import (
     "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    log "github.com/sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
     )
 
@@ -36,7 +36,7 @@ package main
 
 import (
     "log/syslog"
-    log "github.com/Sirupsen/logrus"
+    log "github.com/sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-graylog-hook.v2"
     )
 
