@@ -29,6 +29,7 @@ func TestWritingToUDP(t *testing.T) {
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
+	log.SetReportCaller(true)
 	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
@@ -55,8 +56,8 @@ func TestWritingToUDP(t *testing.T) {
 		t.Errorf("Host should match (exp: testing.local, got: %s)", msg.Host)
 	}
 
-	if len(msg.Extra) != 2 {
-		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
+	if len(msg.Extra) != 5 {
+		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 5, len(msg.Extra), msg.Extra)
 	}
 
 	fileExpected := "graylog_hook_test.go"
@@ -65,12 +66,12 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 34 // Update this if code is updated above
+	lineExpected := 35 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
-	if len(msg.Extra) != 2 {
+	if len(msg.Extra) != 5 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
 	}
 
@@ -251,6 +252,7 @@ func TestStackTracer(t *testing.T) {
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 
 	log := logrus.New()
+	log.SetReportCaller(true)
 	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 
@@ -269,7 +271,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 257 // Update this if code is updated above
+	lineExpected := 259 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -329,5 +331,129 @@ func TestLogrusLevelToSylog(t *testing.T) {
 
 	if logrusLevelToSylog(logrus.PanicLevel) != LOG_ALERT {
 		t.Error("logrusLevelToSylog(PanicLevel) != LOG_ALERT")
+	}
+}
+
+func TestReportCallerEnabled(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+	hook.Host = "testing.local"
+	msgData := "test message\nsecond line"
+
+	log := logrus.New()
+	log.SetReportCaller(true)
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+	log.Info(msgData)
+
+	msg, err := r.ReadMessage()
+
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	fileField, ok := msg.Extra["_file"]
+	if !ok {
+		t.Error("_file field not present in extra fields")
+	}
+
+	fileGot, ok := fileField.(string)
+	if !ok {
+		t.Error("_file field is not a string")
+	}
+
+	fileExpected := "graylog_hook_test.go"
+	if !strings.HasSuffix(fileGot, fileExpected) {
+		t.Errorf("msg.Extra[\"_file\"]: expected %s, got %s", fileExpected, fileGot)
+	}
+
+	lineField, ok := msg.Extra["_line"]
+	if !ok {
+		t.Error("_line field not present in extra fields")
+	}
+
+	lineGot, ok := lineField.(float64)
+	if !ok {
+		t.Error("_line dowes not have the correct type")
+	}
+
+	lineExpected := 350 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
+	}
+
+	functionField, ok := msg.Extra["_function"]
+	if !ok {
+		t.Error("_function field not present in extra fields")
+	}
+
+	functionGot, ok := functionField.(string)
+	if !ok {
+		t.Error("_function field is not a string")
+	}
+
+	functionExpected := "TestReportCallerEnabled"
+	if !strings.HasSuffix(functionGot, functionExpected) {
+		t.Errorf("msg.Extra[\"_function\"]: expected %s, got %s", functionExpected, functionGot)
+	}
+
+	gelfFileExpected := "graylog_hook_test.go"
+	if !strings.HasSuffix(msg.File, gelfFileExpected) {
+		t.Errorf("msg.File: expected %s, got %s", gelfFileExpected,
+			msg.File)
+	}
+
+	gelfLineExpected := 259 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
+	}
+}
+
+func TestReportCallerDisabled(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+	hook.Host = "testing.local"
+	msgData := "test message\nsecond line"
+
+	log := logrus.New()
+	log.SetReportCaller(false)
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+	log.Info(msgData)
+
+	msg, err := r.ReadMessage()
+
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	if _, ok := msg.Extra["_file"]; ok {
+		t.Error("_file field should not present in extra fields")
+	}
+
+	if _, ok := msg.Extra["_line"]; ok {
+		t.Error("_line field should not present in extra fields")
+	}
+
+	if _, ok := msg.Extra["_function"]; ok {
+		t.Error("_function field should not present in extra fields")
+	}
+
+	// if reportCaller is disabled (this is the default setting) the File and Line field should have the default values
+	// corresponding to the types. "" and 0 respectively.
+	gelfFileExpected := ""
+	if msg.File != gelfFileExpected {
+		t.Errorf("msg.File: expected %s, got %s", gelfFileExpected, msg.File)
+	}
+
+	gelfLineExpected := 0
+	if msg.Line != gelfLineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}
 }

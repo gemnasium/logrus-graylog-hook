@@ -266,9 +266,6 @@ func (w *Writer) Warning(m string) (err error)
 // the server specified in New().
 func (w *Writer) Write(p []byte) (n int, err error) {
 
-	// 1 for the function that called us.
-	file, line := getCallerIgnoringLogMulti(1)
-
 	// remove trailing and leading whitespace
 	p = bytes.TrimSpace(p)
 
@@ -291,8 +288,6 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 		TimeUnix: float64(time.Now().UnixNano()/1000000) / 1000.,
 		Level:    6, // info
 		Facility: w.Facility,
-		File:     file,
-		Line:     line,
 		Extra:    map[string]interface{}{},
 	}
 
