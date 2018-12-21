@@ -271,7 +271,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 259 // Update this if code is updated above
+	lineExpected := 261 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
