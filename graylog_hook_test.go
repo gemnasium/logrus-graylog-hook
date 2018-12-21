@@ -287,8 +287,6 @@ func TestStackTracer(t *testing.T) {
 	stacktraceRE := regexp.MustCompile(`^
 .+/logrus-graylog-hook(%2ev2)?.TestStackTracer
 	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
-(?:runtime.skipPleaseUseCallersFrames
-    (/|[A-Z]:/).*/asm.s:\d+)?
 testing.tRunner
 	(/|[A-Z]:/).*/testing.go:\d+
 runtime.*
