@@ -29,7 +29,6 @@ func TestWritingToUDP(t *testing.T) {
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
-	log.SetReportCaller(true)
 	log.Out = ioutil.Discard
 	log.Hooks.Add(hook)
 	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
@@ -56,22 +55,22 @@ func TestWritingToUDP(t *testing.T) {
 		t.Errorf("Host should match (exp: testing.local, got: %s)", msg.Host)
 	}
 
-	if len(msg.Extra) != 5 {
+	if len(msg.Extra) != 2 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 5, len(msg.Extra), msg.Extra)
 	}
 
-	fileExpected := "graylog_hook_test.go"
-	if !strings.HasSuffix(msg.File, fileExpected) {
+	fileExpected := ""
+	if msg.File != fileExpected {
 		t.Errorf("msg.File: expected %s, got %s", fileExpected,
 			msg.File)
 	}
 
-	lineExpected := 35 // Update this if code is updated above
+	lineExpected := 0
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
-	if len(msg.Extra) != 5 {
+	if len(msg.Extra) != 2 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
 	}
 
