@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -284,12 +285,26 @@ func TestStackTracer(t *testing.T) {
 		t.Error("Stack Trace is not a string")
 	}
 	stacktraceRE := regexp.MustCompile(`^
-.+/logrus-graylog-hook(%2ev2)?.TestStackTracer
+(.+)?logrus-graylog-hook(%2ev2)?.TestStackTracer
 	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
 testing.tRunner
 	(/|[A-Z]:/).*/testing.go:\d+
 runtime.*
 	(/|[A-Z]:/).*/runtime/.*:\d+$`)
+
+	// Change the regex when running test on devel version since stack trace on devel is unpredictable
+	if strings.Contains(runtime.Version(), "devel") {
+		stacktraceRE = regexp.MustCompile(`^
+(.+)?logrus-graylog-hook(%2ev2)?.TestStackTracer
+	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
+runtime.skipPleaseUseCallersFrames
+	(/|[A-Z]:/).*/asm.s:\d+
+testing.tRunner
+	(/|[A-Z]:/).*/testing.go:\d+
+runtime.*
+	(/|[A-Z]:/).*/runtime/.*:\d+$`)
+	}
+
 	if !stacktraceRE.MatchString(stacktrace) {
 		t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
 	}
@@ -379,7 +394,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 350 // Update this if code is updated above
+	lineExpected := 364 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}
@@ -405,7 +420,7 @@ func TestReportCallerEnabled(t *testing.T) {
 			msg.File)
 	}
 
-	gelfLineExpected := 259 // Update this if code is updated above
+	gelfLineExpected := 349 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}
