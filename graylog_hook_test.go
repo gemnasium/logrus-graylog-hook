@@ -296,7 +296,7 @@ runtime.*
 	if strings.Contains(runtime.Version(), "devel") {
 		stacktraceRE = regexp.MustCompile(`^
 (.+)?logrus-graylog-hook(%2ev2)?.TestStackTracer
-	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
+	(/|[A-Z]:/).*/errors.go:\d+
 runtime.skipPleaseUseCallersFrames
 	(/|[A-Z]:/).*/asm.s:\d+
 testing.tRunner
