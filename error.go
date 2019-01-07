@@ -49,7 +49,7 @@ func extractStackTrace(err error) errors.StackTrace {
 }
 
 func extractFileAndLine(stacktrace errors.StackTrace) (string, int) {
-	pc := uintptr(stacktrace[0])
+	pc := uintptr(stacktrace[0].PC)
 	fn := runtime.FuncForPC(pc)
 	return fn.FileLine(pc)
 }
