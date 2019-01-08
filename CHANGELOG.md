@@ -1,5 +1,10 @@
 # Logrus Graylog hook
 
+## 3.0,0 - 2019-01-08
+
+* [Use logrus ReportCaller to get file, line and function](https://github.com/gemnasium/logrus-graylog-hook/pull/39). Breaking change: This change removes the `File` and `Line` fields of entries, and replace them with `_file`, `_line`, and `method` when `ReportCaller` is true (see logrus.SetReportCaller). Credits: @psampaz
+* Make this package a go module
+
 ## 2.0.7 - 2018-02-09
 
 * Fix reported levels to match syslog levels (@maxatome / #27)
