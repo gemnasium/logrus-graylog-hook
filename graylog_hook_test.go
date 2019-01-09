@@ -385,7 +385,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 364 // Update this if code is updated above
+	lineExpected := 355 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}
@@ -411,7 +411,7 @@ func TestReportCallerEnabled(t *testing.T) {
 			msg.File)
 	}
 
-	gelfLineExpected := 349 // Update this if code is updated above
+	gelfLineExpected := 355 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}
