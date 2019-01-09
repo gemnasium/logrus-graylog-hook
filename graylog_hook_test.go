@@ -284,7 +284,10 @@ func TestStackTracer(t *testing.T) {
 	if !ok {
 		t.Error("Stack Trace is not a string")
 	}
-	stacktraceRE := regexp.MustCompile(`^
+
+	// Run the test for stack trace only in stable versions
+	if !strings.Contains(runtime.Version(), "devel") {
+		stacktraceRE := regexp.MustCompile(`^
 (.+)?logrus-graylog-hook(%2ev2)?.TestStackTracer
 	(/|[A-Z]:/).+/logrus-graylog-hook(.v2)?/graylog_hook_test.go:\d+
 testing.tRunner
@@ -292,21 +295,9 @@ testing.tRunner
 runtime.*
 	(/|[A-Z]:/).*/runtime/.*:\d+$`)
 
-	// Change the regex when running test on devel version since stack trace on devel is unpredictable
-	if strings.Contains(runtime.Version(), "devel") {
-		stacktraceRE = regexp.MustCompile(`^
-(.+)?logrus-graylog-hook(%2ev2)?.TestStackTracer
-	(/|[A-Z]:/).*/errors.go:\d+
-runtime.skipPleaseUseCallersFrames
-	(/|[A-Z]:/).*/asm.s:\d+
-testing.tRunner
-	(/|[A-Z]:/).*/testing.go:\d+
-runtime.*
-	(/|[A-Z]:/).*/runtime/.*:\d+$`)
-	}
-
-	if !stacktraceRE.MatchString(stacktrace) {
-		t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
+		if !stacktraceRE.MatchString(stacktrace) {
+			t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
+		}
 	}
 }
 
