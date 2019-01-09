@@ -8,11 +8,3 @@ go:
 
 env:
   - GO111MODULE=on
-
-install:
-  - mkdir -p $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook/v3
-  - mv $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook/v3
-  - cd $HOME/gopath/src/github.com/gemnasium/logrus-graylog-hook/v3
-
-script:
-  - env GO111MODULE=on go test -v ./...
