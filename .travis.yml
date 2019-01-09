@@ -8,3 +8,9 @@ go:
 
 env:
   - GO111MODULE=on
+
+install: true
+
+script:
+  - env GO111MODULE=on go build
+  - env GO111MODULE=on go test -v ./...
