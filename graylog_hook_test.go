@@ -288,7 +288,7 @@ func TestStackTracer(t *testing.T) {
 	// Run the test for stack trace only in stable versions
 	if !strings.Contains(runtime.Version(), "devel") {
 		stacktraceRE := regexp.MustCompile(`^
-(.+)?logrus-graylog-hook(%2ev3)?.TestStackTracer
+(.+)?logrus-graylog-hook(/v3)?.TestStackTracer
 	(/|[A-Z]:/).+/logrus-graylog-hook(.v3)?/graylog_hook_test.go:\d+
 testing.tRunner
 	(/|[A-Z]:/).*/testing.go:\d+
