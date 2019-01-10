@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 3.0.2 - 2019-01-10
+
+* TRACE level logs as syslog `LOG_DEBUG` level (7)
+
 ## 3.0.1 - 2019-01-09
 
 * Make pipeline green again. Credits: @psampaz

@@ -314,6 +314,10 @@ func TestLogrusLevelToSylog(t *testing.T) {
 		LOG_DEBUG   = 7 /* debug-level messages */
 	)
 
+	if logrusLevelToSylog(logrus.TraceLevel) != LOG_DEBUG {
+		t.Error("logrusLevelToSylog(TraceLevel) != LOG_DEBUG")
+	}
+
 	if logrusLevelToSylog(logrus.DebugLevel) != LOG_DEBUG {
 		t.Error("logrusLevelToSylog(DebugLevel) != LOG_DEBUG")
 	}
@@ -385,7 +389,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 355 // Update this if code is updated above
+	lineExpected := 359 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}
@@ -411,7 +415,7 @@ func TestReportCallerEnabled(t *testing.T) {
 			msg.File)
 	}
 
-	gelfLineExpected := 355 // Update this if code is updated above
+	gelfLineExpected := 359 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}

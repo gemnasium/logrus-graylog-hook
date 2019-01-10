@@ -145,13 +145,33 @@ func (hook *GraylogHook) fire() {
 }
 
 func logrusLevelToSylog(level logrus.Level) int32 {
-	// Till warn, logrus levels are lower than syslog by 1
-	// (logrus has no equivalent of syslog LOG_NOTICE)
-	if level <= logrus.WarnLevel {
-		return int32(level) + 1
+	const (
+		LOG_EMERG   = 0 /* system is unusable */
+		LOG_ALERT   = 1 /* action must be taken immediately */
+		LOG_CRIT    = 2 /* critical conditions */
+		LOG_ERR     = 3 /* error conditions */
+		LOG_WARNING = 4 /* warning conditions */
+		LOG_NOTICE  = 5 /* normal but significant condition */
+		LOG_INFO    = 6 /* informational */
+		LOG_DEBUG   = 7 /* debug-level messages */
+	)
+	// logrus has no equivalent of syslog LOG_NOTICE
+	switch level {
+	case logrus.PanicLevel:
+		return LOG_ALERT
+	case logrus.FatalLevel:
+		return LOG_CRIT
+	case logrus.ErrorLevel:
+		return LOG_ERR
+	case logrus.WarnLevel:
+		return LOG_WARNING
+	case logrus.InfoLevel:
+		return LOG_INFO
+	case logrus.DebugLevel, logrus.TraceLevel:
+		return LOG_DEBUG
+	default:
+		return LOG_DEBUG
 	}
-	// From info, logrus levels are lower than syslog by 2
-	return int32(level) + 2
 }
 
 // sendEntry sends an entry to graylog synchronously
