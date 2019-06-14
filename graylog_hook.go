@@ -21,7 +21,7 @@ const StackTraceKey = "_stacktrace"
 // be available in the queue.
 var BufSize uint = 8192
 
-var preDifinedIgnoreSuffix = []string{"logrus/hooks.go", "logrus/entry.go", "logrus/logger.go", "logrus/exported.go", "asm_amd64.s"}
+var preDefinedIgnoreSuffix = []string{"logrus/hooks.go", "logrus/entry.go", "logrus/logger.go", "logrus/exported.go", "asm_amd64.s"}
 
 // GraylogHook to send logs to a logging service compatible with the Graylog API and the GELF format.
 type GraylogHook struct {
@@ -63,7 +63,8 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 		gelfLogger:  g,
 		synchronous: true,
 	}
-	hook.AddIgnoreSuffix(preDifinedIgnoreSuffix...)
+	//TODO: test it
+	hook.AddIgnoreSuffix(preDefinedIgnoreSuffix...)
 	return hook
 }
 
@@ -88,7 +89,7 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 		gelfLogger: g,
 		buf:        make(chan graylogEntry, BufSize),
 	}
-	hook.AddIgnoreSuffix(preDifinedIgnoreSuffix...)
+	hook.AddIgnoreSuffix(preDefinedIgnoreSuffix...)
 	go hook.fire() // Log in background
 	return hook
 }

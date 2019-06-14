@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
+	"path"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -65,7 +67,7 @@ func TestWritingToUDP(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 34 // Update this if code is updated above
+	lineExpected := 36 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -269,7 +271,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 257 // Update this if code is updated above
+	lineExpected := 259 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -329,5 +331,48 @@ func TestLogrusLevelToSylog(t *testing.T) {
 
 	if logrusLevelToSylog(logrus.PanicLevel) != LOG_ALERT {
 		t.Error("logrusLevelToSylog(PanicLevel) != LOG_ALERT")
+	}
+}
+
+func TestHookAddIgnoreSuffix(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), nil)
+
+	if len(hook.ignoreSuffix) != len(preDefinedIgnoreSuffix) {
+		t.Errorf("ingnoreSuffix: expected len %d, got %d", len(preDefinedIgnoreSuffix), len(hook.ignoreSuffix))
+	}
+
+	if !reflect.DeepEqual(hook.ignoreSuffix, preDefinedIgnoreSuffix) {
+		t.Errorf("ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, preDefinedIgnoreSuffix)
+	}
+
+	hook.AddIgnoreSuffix("/test1", "test2")
+	want := append(preDefinedIgnoreSuffix[:], "/test1", "test2")
+	if !reflect.DeepEqual(hook.ignoreSuffix, want) {
+		t.Errorf("ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, want)
+	}
+
+	if !reflect.DeepEqual(hook.ignoreSuffix, hook.gelfLogger.ignoreSuffix) {
+		t.Errorf("gelfLogger.ignoreSuffix: expected %v, got %v", hook.ignoreSuffix, hook.gelfLogger.ignoreSuffix)
+	}
+}
+
+func TestGetCallerIgnoringLogMulti(t *testing.T) {
+	file, line := getCallerIgnoringLogMulti(1, nil)
+	if file == "???" {
+		t.Fatal("Unxpected file ???")
+	}
+	suffix := []string{path.Base(file)}
+
+	file2, line2 := getCallerIgnoringLogMulti(1, suffix)
+	if file == file2 {
+		t.Errorf("getCallerIgnoringLogMulti: Unexpected file %s", file2)
+	}
+
+	if line == line2 {
+		t.Errorf("getCallerIgnoringLogMulti: Unexpected line %d", line2)
 	}
 }
