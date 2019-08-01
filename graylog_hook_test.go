@@ -56,7 +56,7 @@ func TestWritingToUDP(t *testing.T) {
 		t.Errorf("Host should match (exp: testing.local, got: %s)", msg.Host)
 	}
 
-	if len(msg.Extra) != 2 {
+	if len(msg.Extra) != 3 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 5, len(msg.Extra), msg.Extra)
 	}
 
@@ -71,7 +71,7 @@ func TestWritingToUDP(t *testing.T) {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
 
-	if len(msg.Extra) != 2 {
+	if len(msg.Extra) != 3 {
 		t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
 	}
 

@@ -212,6 +212,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		extra["_function"] = entry.Caller.Function
 	}
 
+	extra["_level_name"] = entry.Level.String()
 	for k, v := range entry.Data {
 		if !hook.blacklist[k] {
 			extraK := fmt.Sprintf("_%s", k) // "[...] every field you send and prefix with a _ (underscore) will be treated as an additional field."

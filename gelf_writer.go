@@ -17,7 +17,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"time"
 )
 
 // Writer implements io.Writer and is used to send both discrete
@@ -248,54 +247,6 @@ func (w *Writer) WriteMessage(m *Message) (err error) {
 	}
 
 	return nil
-}
-
-/*
-func (w *Writer) Alert(m string) (err error)
-func (w *Writer) Close() error
-func (w *Writer) Crit(m string) (err error)
-func (w *Writer) Debug(m string) (err error)
-func (w *Writer) Emerg(m string) (err error)
-func (w *Writer) Err(m string) (err error)
-func (w *Writer) Info(m string) (err error)
-func (w *Writer) Notice(m string) (err error)
-func (w *Writer) Warning(m string) (err error)
-*/
-
-// Write encodes the given string in a GELF message and sends it to
-// the server specified in New().
-func (w *Writer) Write(p []byte) (n int, err error) {
-
-	// remove trailing and leading whitespace
-	p = bytes.TrimSpace(p)
-
-	// If there are newlines in the message, use the first line
-	// for the short message and set the full message to the
-	// original input.  If the input has no newlines, stick the
-	// whole thing in Short.
-	short := p
-	full := []byte("")
-	if i := bytes.IndexRune(p, '\n'); i > 0 {
-		short = p[:i]
-		full = p
-	}
-
-	m := Message{
-		Version:  "1.0",
-		Host:     w.hostname,
-		Short:    string(short),
-		Full:     string(full),
-		TimeUnix: float64(time.Now().UnixNano()/1000000) / 1000.,
-		Level:    6, // info
-		Facility: w.Facility,
-		Extra:    map[string]interface{}{},
-	}
-
-	if err = w.WriteMessage(&m); err != nil {
-		return 0, err
-	}
-
-	return len(p), nil
 }
 
 func (m *Message) MarshalJSON() ([]byte, error) {
