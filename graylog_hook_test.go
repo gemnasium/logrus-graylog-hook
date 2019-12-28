@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	pkgerrors "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -160,52 +160,49 @@ func TestParallelLogging(t *testing.T) {
 	log.Hooks.Add(hook)
 	log.Hooks.Add(asyncHook)
 
+	log2 := logrus.New()
+	log2.Out = ioutil.Discard
+	log2.Hooks.Add(hook)
+	log2.Hooks.Add(asyncHook)
+
 	quit := make(chan struct{})
 	defer close(quit)
 
-	panicked := false
-
 	recordPanic := func() {
 		if r := recover(); r != nil {
-			panicked = true
+			t.Fatalf("Logging in parallel caused a panic")
 		}
 	}
 
-	go func() {
-		// Start draining messages from GELF
-		go func() {
-			defer recordPanic()
-			for {
-				select {
-				case <-quit:
-					return
-				default:
-					r.ReadMessage()
-				}
-			}
-		}()
+	var wg sync.WaitGroup
 
-		// Log into our hook in parallel
-		for i := 0; i < 10; i++ {
-			go func() {
-				defer recordPanic()
-				for {
-					select {
-					case <-quit:
-						return
-					default:
-						log.Info("Logging")
-					}
-				}
-			}()
+	// Start draining messages from GELF
+	go func() {
+		defer recordPanic()
+		for {
+			select {
+			case <-quit:
+				return
+			default:
+				r.ReadMessage()
+			}
 		}
 	}()
 
-	// Let them all do their thing for a while
-	time.Sleep(100 * time.Millisecond)
-	if panicked {
-		t.Fatalf("Logging in parallel caused a panic")
+	// Log into our hook in parallel
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			defer recordPanic()
+
+			log.Info("Logging")
+			log2.Info("Logging from another logger")
+		}()
 	}
+
+	wg.Wait()
 }
 
 func TestSetWriter(t *testing.T) {
@@ -271,7 +268,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 261 // Update this if code is updated above
+	lineExpected := 258 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -389,7 +386,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 359 // Update this if code is updated above
+	lineExpected := 356 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}

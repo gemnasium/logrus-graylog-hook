@@ -195,6 +195,9 @@ type writerCloserResetter interface {
 // filled out appropriately.  In general, clients will want to use
 // Write, rather than WriteMessage.
 func (w *Writer) WriteMessage(m *Message) (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	mBytes, err := json.Marshal(m)
 	if err != nil {
 		return

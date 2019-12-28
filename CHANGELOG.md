@@ -1,5 +1,9 @@
 # Logrus Graylog hook
 
+## 3.0.3 - 2019-12-28
+
+* Fix concurrent logging when hook is reused (#49)
+
 ## 3.0.2 - 2019-01-10
 
 * TRACE level logs as syslog `LOG_DEBUG` level (7)
