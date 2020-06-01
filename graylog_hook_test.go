@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"regexp"
@@ -268,7 +269,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 258 // Update this if code is updated above
+	lineExpected := 259 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -286,6 +287,64 @@ func TestStackTracer(t *testing.T) {
 	if !strings.Contains(runtime.Version(), "devel") {
 		stacktraceRE := regexp.MustCompile(`^
 (.+)?logrus-graylog-hook(/v3)?.TestStackTracer
+	(/|[A-Z]:/).+/logrus-graylog-hook(.v3)?/graylog_hook_test.go:\d+
+testing.tRunner
+	(/|[A-Z]:/).*/testing.go:\d+
+runtime.*
+	(/|[A-Z]:/).*/runtime/.*:\d+$`)
+
+		if !stacktraceRE.MatchString(stacktrace) {
+			t.Errorf("Stack Trace not as expected. Got:\n%s\n", stacktrace)
+		}
+	}
+}
+
+func TestWrappedStackTracer(t *testing.T) {
+	r, err := NewReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewReader: %s", err)
+	}
+	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
+
+	log := logrus.New()
+	log.SetReportCaller(true)
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+
+	stackErr := pkgerrors.New("sample error")
+	wrappedErr := fmt.Errorf("wrapped: %w", stackErr)
+
+	log.WithError(wrappedErr).Info("Testing sample error")
+
+	msg, err := r.ReadMessage()
+	if err != nil {
+		t.Errorf("ReadMessage: %s", err)
+	}
+
+	fileExpected := "graylog_hook_test.go"
+	if !strings.HasSuffix(msg.File, fileExpected) {
+		t.Errorf("msg.File: expected %s, got %s", fileExpected,
+			msg.File)
+	}
+
+	lineExpected := 317 // Update this if code is updated above
+	if msg.Line != lineExpected {
+		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
+	}
+
+	stacktraceI, ok := msg.Extra[StackTraceKey]
+	if !ok {
+		t.Error("Stack Trace not found in result")
+	}
+	stacktrace, ok := stacktraceI.(string)
+	if !ok {
+		t.Error("Stack Trace is not a string")
+	}
+
+	// Run the test for stack trace only in stable versions
+	if !strings.Contains(runtime.Version(), "devel") {
+		stacktraceRE := regexp.MustCompile(`^
+(.+)?logrus-graylog-hook(/v3)?.TestWrappedStackTracer
 	(/|[A-Z]:/).+/logrus-graylog-hook(.v3)?/graylog_hook_test.go:\d+
 testing.tRunner
 	(/|[A-Z]:/).*/testing.go:\d+
@@ -386,7 +445,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 356 // Update this if code is updated above
+	lineExpected := 415 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}
