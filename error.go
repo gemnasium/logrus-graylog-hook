@@ -2,7 +2,9 @@ package graylog
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
+	"errors"
+
+	pkgerrors "github.com/pkg/errors"
 )
 
 // newMarshalableError builds an error which encodes its error message into JSON
@@ -25,16 +27,19 @@ type causer interface {
 }
 
 type stackTracer interface {
-	StackTrace() errors.StackTrace
+	StackTrace() pkgerrors.StackTrace
 }
 
-func extractStackTrace(err error) errors.StackTrace {
+func extractStackTrace(err error) pkgerrors.StackTrace {
 	var tracer stackTracer
 	for {
-		if st, ok := err.(stackTracer); ok {
+		var st stackTracer
+		if errors.As(err, &st) {
 			tracer = st
 		}
-		if cause, ok := err.(causer); ok {
+
+		var cause causer
+		if errors.As(err, &cause) {
 			err = cause.Cause()
 			continue
 		}
