@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"runtime"
 	"strings"
@@ -212,16 +214,16 @@ func TestSetWriter(t *testing.T) {
 	}
 	hook := NewGraylogHook(r.Addr(), nil)
 
-	w := hook.Writer()
+	w := hook.Writer().(*UDPWriter)
 	w.CompressionLevel = flate.BestCompression
 	hook.SetWriter(w)
 
-	if hook.Writer().CompressionLevel != flate.BestCompression {
-		t.Error("Writer was not set correctly")
+	if hook.Writer().(*UDPWriter).CompressionLevel != flate.BestCompression {
+		t.Error("UDPWriter was not set correctly")
 	}
 
 	if hook.SetWriter(nil) == nil {
-		t.Error("Setting a nil writter should raise an error")
+		t.Error("Setting a nil writer should raise an error")
 	}
 }
 
@@ -298,7 +300,7 @@ runtime.*
 	}
 }
 
-func TestLogrusLevelToSylog(t *testing.T) {
+func TestLogrusLevelToSyslog(t *testing.T) {
 	// Syslog constants
 	const (
 		LOG_EMERG   = 0 /* system is unusable */
@@ -462,4 +464,39 @@ func TestReportCallerDisabled(t *testing.T) {
 	if msg.Line != gelfLineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}
+}
+
+func TestHTTPWriter(t *testing.T) {
+	var gelf map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// Test request parameters
+		all, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal("Unable to read response body")
+		}
+
+		err = json.Unmarshal(all, &gelf)
+		if err != nil {
+			t.Fatal("Unable to unmarshal json")
+		}
+
+		if gelf["host"] != "testing.local" {
+			t.Errorf("host: expected %s, got %s", "testing.local", gelf["host"])
+		}
+
+		rw.WriteHeader(204)
+	}))
+	// Close the server when test finishes
+	defer server.Close()
+
+	hook := NewGraylogHook(server.URL, map[string]interface{}{})
+	hook.Host = "testing.local"
+	msgData := "test message\nsecond line"
+
+	log := logrus.New()
+	log.SetReportCaller(false)
+	log.Out = ioutil.Discard
+	log.Hooks.Add(hook)
+	log.Info(msgData)
 }

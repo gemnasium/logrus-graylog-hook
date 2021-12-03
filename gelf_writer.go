@@ -14,16 +14,22 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
 
-// Writer implements io.Writer and is used to send both discrete
+type GELFWriter interface {
+	WriteMessage(m *Message) (err error)
+}
+
+// UDPWriter implements io.Writer and is used to send both discrete
 // messages to a graylog2 server, or data from a stream-oriented
 // interface (like the functions in log).
-type Writer struct {
+type UDPWriter struct {
 	mu               sync.Mutex
 	conn             net.Conn
 	hostname         string
@@ -89,12 +95,32 @@ func numChunks(b []byte) int {
 	return len(b)/chunkedDataLen + 1
 }
 
-// New returns a new GELF Writer.  This writer can be used to send the
+// NewWriter returns a new GELFWriter. This writer can be used to send the
 // output of the standard Go log functions to a central GELF server by
 // passing it to log.SetOutput()
-func NewWriter(addr string) (*Writer, error) {
+func NewWriter(addr string) (GELFWriter, error) {
+	if strings.HasPrefix(addr, "http") {
+		return newHTTPWriter(addr)
+	}
+
+	return newUDPWriter(addr)
+}
+
+func newHTTPWriter(addr string) (GELFWriter, error) {
+	httpClient := &http.Client{
+		Transport: &http.Transport{},
+		Timeout:   10 * time.Second,
+	}
+
+	return HTTPWriter{
+		httpClient: httpClient,
+		addr:       addr,
+	}, nil
+}
+
+func newUDPWriter(addr string) (GELFWriter, error) {
 	var err error
-	w := new(Writer)
+	w := new(UDPWriter)
 	w.CompressionLevel = flate.BestSpeed
 
 	if w.conn, err = net.Dial("udp", addr); err != nil {
@@ -115,7 +141,7 @@ func NewWriter(addr string) (*Writer, error) {
 //
 //     2-byte magic (0x1e 0x0f), 8 byte id, 1 byte sequence id, 1 byte
 //     total, chunk-data
-func (w *Writer) writeChunked(zBytes []byte) (err error) {
+func (w *UDPWriter) writeChunked(zBytes []byte) (err error) {
 	b := make([]byte, 0, ChunkSize)
 	buf := bytes.NewBuffer(b)
 	nChunksI := numChunks(zBytes)
@@ -191,10 +217,10 @@ type writerCloserResetter interface {
 }
 
 // WriteMessage sends the specified message to the GELF server
-// specified in the call to New().  It assumes all the fields are
-// filled out appropriately.  In general, clients will want to use
+// specified in the call to NewWriter(). It assumes all the fields are
+// filled out appropriately. In general, clients will want to use
 // Write, rather than WriteMessage.
-func (w *Writer) WriteMessage(m *Message) (err error) {
+func (w *UDPWriter) WriteMessage(m *Message) (err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -266,8 +292,8 @@ func (w *Writer) Warning(m string) (err error)
 */
 
 // Write encodes the given string in a GELF message and sends it to
-// the server specified in New().
-func (w *Writer) Write(p []byte) (n int, err error) {
+// the server specified in NewWriter().
+func (w *UDPWriter) Write(p []byte) (n int, err error) {
 
 	// remove trailing and leading whitespace
 	p = bytes.TrimSpace(p)
@@ -359,5 +385,31 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 			m.Line = int(v.(float64))
 		}
 	}
+	return nil
+}
+
+// HTTPWriter implements the GELFWriter interface, and cannot be used
+// as an io.Writer
+type HTTPWriter struct {
+	httpClient *http.Client
+	addr       string
+}
+
+func (h HTTPWriter) WriteMessage(m *Message) (err error) {
+	mBytes, err := json.Marshal(m)
+	if err != nil {
+		return
+	}
+
+	resp, err := h.httpClient.Post(h.addr, "application/json", bytes.NewBuffer(mBytes))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return fmt.Errorf("got code %s, expected 204", resp.Status)
+	}
+
 	return nil
 }
