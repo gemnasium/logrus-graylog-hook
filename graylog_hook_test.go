@@ -17,7 +17,7 @@ import (
 )
 
 const SyslogInfoLevel = 6
-const SyslogErrorLevel = 7
+const SyslogErrorLevel = 3
 
 func TestWritingToUDP(t *testing.T) {
 	r, err := NewReader("127.0.0.1:0")
@@ -78,14 +78,14 @@ func TestWritingToUDP(t *testing.T) {
 	extra := map[string]interface{}{"foo": "bar", "withField": "1"}
 
 	for k, v := range extra {
-		// Remember extra fileds are prefixed with "_"
+		// Remember extra fields are prefixed with "_"
 		if msg.Extra["_"+k].(string) != extra[k].(string) {
 			t.Errorf("Expected extra '%s' to be %#v, got %#v", k, v, msg.Extra["_"+k])
 		}
 	}
 }
 
-func testErrorLevelReporting(t *testing.T) {
+func TestErrorLevelReporting(t *testing.T) {
 	r, err := NewReader("127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("NewReader: %s", err)
@@ -311,32 +311,32 @@ func TestLogrusLevelToSylog(t *testing.T) {
 		LOG_DEBUG   = 7 /* debug-level messages */
 	)
 
-	if logrusLevelToSylog(logrus.TraceLevel) != LOG_DEBUG {
-		t.Error("logrusLevelToSylog(TraceLevel) != LOG_DEBUG")
+	if logrusLevelToSyslog(logrus.TraceLevel) != LOG_DEBUG {
+		t.Error("logrusLevelToSyslog(TraceLevel) != LOG_DEBUG")
 	}
 
-	if logrusLevelToSylog(logrus.DebugLevel) != LOG_DEBUG {
-		t.Error("logrusLevelToSylog(DebugLevel) != LOG_DEBUG")
+	if logrusLevelToSyslog(logrus.DebugLevel) != LOG_DEBUG {
+		t.Error("logrusLevelToSyslog(DebugLevel) != LOG_DEBUG")
 	}
 
-	if logrusLevelToSylog(logrus.InfoLevel) != LOG_INFO {
-		t.Error("logrusLevelToSylog(InfoLevel) != LOG_INFO")
+	if logrusLevelToSyslog(logrus.InfoLevel) != LOG_INFO {
+		t.Error("logrusLevelToSyslog(InfoLevel) != LOG_INFO")
 	}
 
-	if logrusLevelToSylog(logrus.WarnLevel) != LOG_WARNING {
-		t.Error("logrusLevelToSylog(WarnLevel) != LOG_WARNING")
+	if logrusLevelToSyslog(logrus.WarnLevel) != LOG_WARNING {
+		t.Error("logrusLevelToSyslog(WarnLevel) != LOG_WARNING")
 	}
 
-	if logrusLevelToSylog(logrus.ErrorLevel) != LOG_ERR {
-		t.Error("logrusLevelToSylog(ErrorLevel) != LOG_ERR")
+	if logrusLevelToSyslog(logrus.ErrorLevel) != LOG_ERR {
+		t.Error("logrusLevelToSyslog(ErrorLevel) != LOG_ERR")
 	}
 
-	if logrusLevelToSylog(logrus.FatalLevel) != LOG_CRIT {
-		t.Error("logrusLevelToSylog(FatalLevel) != LOG_CRIT")
+	if logrusLevelToSyslog(logrus.FatalLevel) != LOG_CRIT {
+		t.Error("logrusLevelToSyslog(FatalLevel) != LOG_CRIT")
 	}
 
-	if logrusLevelToSylog(logrus.PanicLevel) != LOG_ALERT {
-		t.Error("logrusLevelToSylog(PanicLevel) != LOG_ALERT")
+	if logrusLevelToSyslog(logrus.PanicLevel) != LOG_ALERT {
+		t.Error("logrusLevelToSyslog(PanicLevel) != LOG_ALERT")
 	}
 }
 
