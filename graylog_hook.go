@@ -88,7 +88,7 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 
 // Fire is called when a log event is fired.
 // We assume the entry will be altered by another hook,
-// otherwise we might logging something wrong to Graylog
+// otherwise we might be logging something wrong to Graylog
 func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
 	defer hook.mu.RUnlock()
@@ -144,7 +144,7 @@ func (hook *GraylogHook) fire() {
 	}
 }
 
-func logrusLevelToSylog(level logrus.Level) int32 {
+func logrusLevelToSyslog(level logrus.Level) int32 {
 	const (
 		LOG_EMERG   = 0 /* system is unusable */
 		LOG_ALERT   = 1 /* action must be taken immediately */
@@ -196,7 +196,7 @@ func (hook *GraylogHook) sendEntry(entry graylogEntry) {
 		full = p
 	}
 
-	level := logrusLevelToSylog(entry.Level)
+	level := logrusLevelToSyslog(entry.Level)
 
 	// Don't modify entry.Data directly, as the entry will used after this hook was fired
 	extra := map[string]interface{}{}
