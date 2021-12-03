@@ -24,7 +24,7 @@ type GraylogHook struct {
 	Extra       map[string]interface{}
 	Host        string
 	Level       logrus.Level
-	gelfLogger  *Writer
+	gelfLogger  GELFWriter
 	buf         chan graylogEntry
 	wg          sync.WaitGroup
 	mu          sync.RWMutex
@@ -58,6 +58,7 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 		gelfLogger:  g,
 		synchronous: true,
 	}
+
 	return hook
 }
 
@@ -83,6 +84,7 @@ func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook
 		buf:        make(chan graylogEntry, BufSize),
 	}
 	go hook.fire() // Log in background
+
 	return hook
 }
 
@@ -270,8 +272,8 @@ func (hook *GraylogHook) Blacklist(b []string) {
 	}
 }
 
-// SetWriter sets the hook Gelf Writer
-func (hook *GraylogHook) SetWriter(w *Writer) error {
+// SetWriter sets the hook Gelf writer
+func (hook *GraylogHook) SetWriter(w *UDPWriter) error {
 	if w == nil {
 		return errors.New("writer can't be nil")
 	}
@@ -279,7 +281,7 @@ func (hook *GraylogHook) SetWriter(w *Writer) error {
 	return nil
 }
 
-// Writer returns the logger Gelf Writer
-func (hook *GraylogHook) Writer() *Writer {
+// Writer returns the writer
+func (hook *GraylogHook) Writer() GELFWriter {
 	return hook.gelfLogger
 }
