@@ -40,6 +40,8 @@ import (
 
 func main() {
     hook := graylog.NewAsyncGraylogHook("<graylog_ip>:<graylog_port>", map[string]interface{}{"this": "is logged every time"})
+    // NOTE: you must call Flush() before your program exits to ensure ALL of your logs are sent.
+    // This defer statement will not have that effect if you write it in a non-main() method.
     defer hook.Flush()
     log.AddHook(hook)
     log.Info("some logging message")
