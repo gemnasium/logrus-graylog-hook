@@ -270,7 +270,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 258 // Update this if code is updated above
+	lineExpected := 260 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -388,7 +388,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 356 // Update this if code is updated above
+	lineExpected := 358 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}

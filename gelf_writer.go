@@ -139,8 +139,8 @@ func newUDPWriter(addr string) (GELFWriter, error) {
 // of GELF chunked messages.  The header format is documented at
 // https://github.com/Graylog2/graylog2-docs/wiki/GELF as:
 //
-//     2-byte magic (0x1e 0x0f), 8 byte id, 1 byte sequence id, 1 byte
-//     total, chunk-data
+//	2-byte magic (0x1e 0x0f), 8 byte id, 1 byte sequence id, 1 byte
+//	total, chunk-data
 func (w *UDPWriter) writeChunked(zBytes []byte) (err error) {
 	b := make([]byte, 0, ChunkSize)
 	buf := bytes.NewBuffer(b)
@@ -407,8 +407,8 @@ func (h HTTPWriter) WriteMessage(m *Message) (err error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 204 {
-		return fmt.Errorf("got code %s, expected 204", resp.Status)
+	if resp.StatusCode != 202 {
+		return fmt.Errorf("got code %s, expected 202", resp.Status)
 	}
 
 	return nil
