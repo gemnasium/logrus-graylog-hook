@@ -17,7 +17,7 @@ type Reader struct {
 	conn net.Conn
 }
 
-func NewReader(addr string) (*Reader, error) {
+func NewUDPReader(addr string) (*Reader, error) {
 	var err error
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -32,6 +32,21 @@ func NewReader(addr string) (*Reader, error) {
 	r := new(Reader)
 	r.conn = conn
 	return r, nil
+}
+
+func NewTCPReader(addr string) (*net.TCPListener, error) {
+	var err error
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("ResolveTCPAddr('%s'): %s", addr, err)
+	}
+
+	listener, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		return nil, fmt.Errorf("ListenTCP: %s", err)
+	}
+
+	return listener, nil
 }
 
 func (r *Reader) Addr() string {
@@ -122,7 +137,7 @@ func (r *Reader) ReadMessage() (*Message, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("NewReader: %s", err)
+		return nil, fmt.Errorf("NewUDPReader: %s", err)
 	}
 
 	if _, err = io.Copy(&buf, cReader); err != nil {

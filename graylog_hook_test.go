@@ -4,6 +4,8 @@ import (
 	"compress/flate"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,9 +24,9 @@ const SyslogInfoLevel = 6
 const SyslogErrorLevel = 3
 
 func TestWritingToUDP(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
 	hook.Host = "testing.local"
@@ -32,7 +34,7 @@ func TestWritingToUDP(t *testing.T) {
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
 
@@ -87,16 +89,96 @@ func TestWritingToUDP(t *testing.T) {
 	}
 }
 
-func TestErrorLevelReporting(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+func TestWritingToTCP(t *testing.T) {
+	listener, err := NewTCPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewTCPReader: %s", err)
+	}
+	msgData := "test message\nsecond line"
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	go func(msgData string, wg *sync.WaitGroup) {
+		r := new(Reader)
+		r.conn, err = listener.Accept()
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		msg, err := r.ReadMessage()
+
+		if err != nil {
+			t.Errorf("ReadMessage: %s", err)
+		}
+
+		if msg.Short != "test message" {
+			t.Errorf("msg.Short: expected %s, got %s", msgData, msg.Full)
+		}
+
+		if msg.Full != msgData {
+			t.Errorf("msg.Full: expected %s, got %s", msgData, msg.Full)
+		}
+
+		if msg.Level != SyslogInfoLevel {
+			t.Errorf("msg.Level: expected: %d, got %d)", SyslogInfoLevel, msg.Level)
+		}
+
+		if msg.Host != "testing.local" {
+			t.Errorf("Host should match (exp: testing.local, got: %s)", msg.Host)
+		}
+
+		if len(msg.Extra) != 2 {
+			t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 5, len(msg.Extra), msg.Extra)
+		}
+
+		fileExpected := ""
+		if msg.File != fileExpected {
+			t.Errorf("msg.File: expected %s, got %s", fileExpected,
+				msg.File)
+		}
+
+		lineExpected := 0
+		if msg.Line != lineExpected {
+			t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
+		}
+
+		if len(msg.Extra) != 2 {
+			t.Errorf("wrong number of extra fields (exp: %d, got %d) in %v", 2, len(msg.Extra), msg.Extra)
+		}
+
+		extra := map[string]interface{}{"foo": "bar", "withField": "1"}
+
+		for k, v := range extra {
+			// Remember extra fields are prefixed with "_"
+			if msg.Extra["_"+k].(string) != extra[k].(string) {
+				t.Errorf("Expected extra '%s' to be %#v, got %#v", k, v, msg.Extra["_"+k])
+			}
+		}
+		wg.Done()
+	}(msgData, wg)
+
+	hook := NewGraylogHook("tcp://"+listener.Addr().String(), map[string]interface{}{"foo": "bar"})
+	hook.Host = "testing.local"
+	hook.Blacklist([]string{"filterMe"})
+
+	log := logrus.New()
+	log.Out = io.Discard
+	log.Hooks.Add(hook)
+	log.WithFields(logrus.Fields{"withField": "1", "filterMe": "1"}).Info(msgData)
+	wg.Wait()
+	fmt.Println("test done")
+}
+
+func TestErrorLevelReporting(t *testing.T) {
+	r, err := NewUDPReader("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{"foo": "bar"})
 	msgData := "test message\nsecond line"
 
 	log := logrus.New()
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 
 	log.Error(msgData)
@@ -121,14 +203,14 @@ func TestErrorLevelReporting(t *testing.T) {
 }
 
 func TestJSONErrorMarshalling(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 
 	log := logrus.New()
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 
 	log.WithError(errors.New("sample error")).Info("Testing sample error")
@@ -150,20 +232,20 @@ func TestJSONErrorMarshalling(t *testing.T) {
 }
 
 func TestParallelLogging(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), nil)
 	asyncHook := NewAsyncGraylogHook(r.Addr(), nil)
 
 	log := logrus.New()
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 	log.Hooks.Add(asyncHook)
 
 	log2 := logrus.New()
-	log2.Out = ioutil.Discard
+	log2.Out = io.Discard
 	log2.Hooks.Add(hook)
 	log2.Hooks.Add(asyncHook)
 
@@ -208,17 +290,17 @@ func TestParallelLogging(t *testing.T) {
 }
 
 func TestSetWriter(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), nil)
 
-	w := hook.Writer().(*UDPWriter)
+	w := hook.Writer().(*LowLevelProtocolWriter)
 	w.CompressionLevel = flate.BestCompression
 	hook.SetWriter(w)
 
-	if hook.Writer().(*UDPWriter).CompressionLevel != flate.BestCompression {
+	if hook.Writer().(*LowLevelProtocolWriter).CompressionLevel != flate.BestCompression {
 		t.Error("UDPWriter was not set correctly")
 	}
 
@@ -232,11 +314,11 @@ func TestWithInvalidGraylogAddr(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	logrus.SetOutput(ioutil.Discard)
+	logrus.SetOutput(io.Discard)
 	hook := NewGraylogHook(addr.String(), nil)
 
 	log := logrus.New()
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 
 	// Should not panic
@@ -244,15 +326,15 @@ func TestWithInvalidGraylogAddr(t *testing.T) {
 }
 
 func TestStackTracer(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 
 	log := logrus.New()
 	log.SetReportCaller(true)
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 
 	stackErr := pkgerrors.New("sample error")
@@ -270,7 +352,7 @@ func TestStackTracer(t *testing.T) {
 			msg.File)
 	}
 
-	lineExpected := 260 // Update this if code is updated above
+	lineExpected := 342 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", lineExpected, msg.Line)
 	}
@@ -343,9 +425,9 @@ func TestLogrusLevelToSyslog(t *testing.T) {
 }
 
 func TestReportCallerEnabled(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 	hook.Host = "testing.local"
@@ -353,7 +435,7 @@ func TestReportCallerEnabled(t *testing.T) {
 
 	log := logrus.New()
 	log.SetReportCaller(true)
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 	log.Info(msgData)
 
@@ -388,7 +470,7 @@ func TestReportCallerEnabled(t *testing.T) {
 		t.Error("_line dowes not have the correct type")
 	}
 
-	lineExpected := 358 // Update this if code is updated above
+	lineExpected := 440 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Extra[\"_line\"]: expected %d, got %d", lineExpected, int(lineGot))
 	}
@@ -414,16 +496,16 @@ func TestReportCallerEnabled(t *testing.T) {
 			msg.File)
 	}
 
-	gelfLineExpected := 359 // Update this if code is updated above
+	gelfLineExpected := 440 // Update this if code is updated above
 	if msg.Line != lineExpected {
 		t.Errorf("msg.Line: expected %d, got %d", gelfLineExpected, msg.Line)
 	}
 }
 
 func TestReportCallerDisabled(t *testing.T) {
-	r, err := NewReader("127.0.0.1:0")
+	r, err := NewUDPReader("127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("NewReader: %s", err)
+		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), map[string]interface{}{})
 	hook.Host = "testing.local"
@@ -431,7 +513,7 @@ func TestReportCallerDisabled(t *testing.T) {
 
 	log := logrus.New()
 	log.SetReportCaller(false)
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 	log.Info(msgData)
 
@@ -496,7 +578,7 @@ func TestHTTPWriter(t *testing.T) {
 
 	log := logrus.New()
 	log.SetReportCaller(false)
-	log.Out = ioutil.Discard
+	log.Out = io.Discard
 	log.Hooks.Add(hook)
 	log.Info(msgData)
 }

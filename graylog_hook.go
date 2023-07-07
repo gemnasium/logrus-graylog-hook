@@ -273,7 +273,7 @@ func (hook *GraylogHook) Blacklist(b []string) {
 }
 
 // SetWriter sets the hook Gelf writer
-func (hook *GraylogHook) SetWriter(w *UDPWriter) error {
+func (hook *GraylogHook) SetWriter(w *LowLevelProtocolWriter) error {
 	if w == nil {
 		return errors.New("writer can't be nil")
 	}
