@@ -26,10 +26,10 @@ type GELFWriter interface {
 	WriteMessage(m *Message) (err error)
 }
 
-// UDPWriter implements io.Writer and is used to send both discrete
+// LowLevelProtocolWriter implements io.Writer and is used to send both discrete
 // messages to a graylog2 server, or data from a stream-oriented
 // interface (like the functions in log).
-type UDPWriter struct {
+type LowLevelProtocolWriter struct {
 	mu               sync.Mutex
 	conn             net.Conn
 	hostname         string
@@ -102,8 +102,11 @@ func NewWriter(addr string) (GELFWriter, error) {
 	if strings.HasPrefix(addr, "http") {
 		return newHTTPWriter(addr)
 	}
+	if strings.HasPrefix(addr, "tcp://") {
+		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"))
+	}
 
-	return newUDPWriter(addr)
+	return newLowLevelProtocolWriter("udp", addr)
 }
 
 func newHTTPWriter(addr string) (GELFWriter, error) {
@@ -118,14 +121,15 @@ func newHTTPWriter(addr string) (GELFWriter, error) {
 	}, nil
 }
 
-func newUDPWriter(addr string) (GELFWriter, error) {
+func newLowLevelProtocolWriter(protocol, addr string) (GELFWriter, error) {
 	var err error
-	w := new(UDPWriter)
+	w := new(LowLevelProtocolWriter)
 	w.CompressionLevel = flate.BestSpeed
 
-	if w.conn, err = net.Dial("udp", addr); err != nil {
+	if w.conn, err = net.Dial(protocol, strings.TrimPrefix(addr, "tcp://")); err != nil {
 		return nil, err
 	}
+
 	if w.hostname, err = os.Hostname(); err != nil {
 		return nil, err
 	}
@@ -141,7 +145,7 @@ func newUDPWriter(addr string) (GELFWriter, error) {
 //
 //	2-byte magic (0x1e 0x0f), 8 byte id, 1 byte sequence id, 1 byte
 //	total, chunk-data
-func (w *UDPWriter) writeChunked(zBytes []byte) (err error) {
+func (w *LowLevelProtocolWriter) writeChunked(zBytes []byte) (err error) {
 	b := make([]byte, 0, ChunkSize)
 	buf := bytes.NewBuffer(b)
 	nChunksI := numChunks(zBytes)
@@ -220,7 +224,7 @@ type writerCloserResetter interface {
 // specified in the call to NewWriter(). It assumes all the fields are
 // filled out appropriately. In general, clients will want to use
 // Write, rather than WriteMessage.
-func (w *UDPWriter) WriteMessage(m *Message) (err error) {
+func (w *LowLevelProtocolWriter) WriteMessage(m *Message) (err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -293,7 +297,7 @@ func (w *Writer) Warning(m string) (err error)
 
 // Write encodes the given string in a GELF message and sends it to
 // the server specified in NewWriter().
-func (w *UDPWriter) Write(p []byte) (n int, err error) {
+func (w *LowLevelProtocolWriter) Write(p []byte) (n int, err error) {
 
 	// remove trailing and leading whitespace
 	p = bytes.TrimSpace(p)
