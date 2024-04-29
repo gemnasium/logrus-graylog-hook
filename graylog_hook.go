@@ -105,7 +105,14 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 
 	newData := make(map[string]interface{})
 	for k, v := range entry.Data {
-		newData[k] = v
+		switch v := v.(type) {
+		case error:
+			// Otherwise errors are ignored by `encoding/json`
+			// https://github.com/Sirupsen/logrus/issues/137
+			newData[k] = v.Error()
+		default:
+			newData[k] = v
+		}
 	}
 
 	newEntry := &logrus.Entry{
