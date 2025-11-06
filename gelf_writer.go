@@ -61,9 +61,9 @@ type Message struct {
 	Full     string                 `json:"full_message"`
 	TimeUnix float64                `json:"timestamp"`
 	Level    int32                  `json:"level"`
-	Facility string                 `json:"facility"`
-	File     string                 `json:"file"`
-	Line     int                    `json:"line"`
+	Facility string                 `json:"facility,omitempty"`
+	File     string                 `json:"file,omitempty"`
+	Line     int                    `json:"line,omitempty"`
 	Extra    map[string]interface{} `json:"-"`
 }
 
