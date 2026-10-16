@@ -36,6 +36,7 @@ type LowLevelProtocolWriter struct {
 	Facility         string // defaults to current process name
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
+	Timeout          time.Duration // for net.Dial, defaults to 10 seconds
 
 	zw                 writerCloserResetter
 	zwCompressionLevel int
@@ -95,24 +96,31 @@ func numChunks(b []byte) int {
 	return len(b)/chunkedDataLen + 1
 }
 
+func NewWriterTimeout(addr string, timeout time.Duration) (GELFWriter, error) {
+	if strings.HasPrefix(addr, "http") {
+		if timeout == 0 {
+			timeout = 10 * time.Second
+		}
+		return newHTTPWriterTimeout(addr, timeout)
+	}
+	if strings.HasPrefix(addr, "tcp://") {
+		return newLowLevelProtocolWriterTimeout("tcp", strings.TrimPrefix(addr, "tcp://"), timeout)
+	}
+
+	return newLowLevelProtocolWriterTimeout("udp", addr, timeout)
+}
+
 // NewWriter returns a new GELFWriter. This writer can be used to send the
 // output of the standard Go log functions to a central GELF server by
 // passing it to log.SetOutput()
 func NewWriter(addr string) (GELFWriter, error) {
-	if strings.HasPrefix(addr, "http") {
-		return newHTTPWriter(addr)
-	}
-	if strings.HasPrefix(addr, "tcp://") {
-		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"))
-	}
-
-	return newLowLevelProtocolWriter("udp", addr)
+	return NewWriterTimeout(addr, 0*time.Second)
 }
 
-func newHTTPWriter(addr string) (GELFWriter, error) {
+func newHTTPWriterTimeout(addr string, timeout time.Duration) (GELFWriter, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{},
-		Timeout:   10 * time.Second,
+		Timeout:   timeout,
 	}
 
 	return HTTPWriter{
@@ -121,12 +129,21 @@ func newHTTPWriter(addr string) (GELFWriter, error) {
 	}, nil
 }
 
-func newLowLevelProtocolWriter(protocol, addr string) (GELFWriter, error) {
+func newHTTPWriter(addr string) (GELFWriter, error) {
+	return newHTTPWriterTimeout(addr, 10*time.Second)
+}
+
+func newLowLevelProtocolWriterTimeout(protocol, addr string,
+	timeout time.Duration) (GELFWriter, error) {
 	var err error
 	w := new(LowLevelProtocolWriter)
 	w.CompressionLevel = flate.BestSpeed
+	w.Timeout = timeout
 
-	if w.conn, err = net.Dial(protocol, strings.TrimPrefix(addr, "tcp://")); err != nil {
+	d := &net.Dialer{
+		Timeout: timeout, // set the timeout for the connection
+	}
+	if w.conn, err = d.Dial(protocol, strings.TrimPrefix(addr, "tcp://")); err != nil {
 		return nil, err
 	}
 
@@ -137,6 +154,11 @@ func newLowLevelProtocolWriter(protocol, addr string) (GELFWriter, error) {
 	w.Facility = path.Base(os.Args[0])
 
 	return w, nil
+}
+
+func newLowLevelProtocolWriter(protocol, addr string) (GELFWriter, error) {
+	// default no timeout
+	return newLowLevelProtocolWriterTimeout(protocol, addr, 0*time.Second)
 }
 
 // writes the gzip compressed byte array to the connection as a series
