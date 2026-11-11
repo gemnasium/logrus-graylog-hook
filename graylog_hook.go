@@ -40,8 +40,12 @@ type graylogEntry struct {
 }
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
-func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := NewWriter(addr)
+// Options such as WithTimeout configure the underlying writer.
+//
+// If the writer can't be created, the error is logged and the returned hook
+// drops messages instead of sending them.
+func NewGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *GraylogHook {
+	g, err := NewWriter(addr, opts...)
 	if err != nil {
 		logrus.WithError(err).Error("Can't create Gelf logger")
 	}
@@ -65,8 +69,9 @@ func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
-func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	g, err := NewWriter(addr)
+// Options such as WithTimeout configure the underlying writer.
+func NewAsyncGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *GraylogHook {
+	g, err := NewWriter(addr, opts...)
 	if err != nil {
 		logrus.WithError(err).Error("Can't create Gelf logger")
 	}

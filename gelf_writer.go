@@ -22,6 +22,7 @@ import (
 	"time"
 )
 
+// GELFWriter sends GELF messages to a Graylog server.
 type GELFWriter interface {
 	WriteMessage(m *Message) (err error)
 }
@@ -36,6 +37,9 @@ type LowLevelProtocolWriter struct {
 	Facility         string // defaults to current process name
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
+	// Timeout is the write deadline applied before each message is sent.
+	// Zero means no deadline. Set from WithTimeout, which also bounds the dial.
+	Timeout time.Duration
 
 	zw                 writerCloserResetter
 	zwCompressionLevel int
@@ -95,24 +99,71 @@ func numChunks(b []byte) int {
 	return len(b)/chunkedDataLen + 1
 }
 
+// DefaultHTTPTimeout is the timeout used by the HTTP writer when no
+// WithTimeout option is given.
+const DefaultHTTPTimeout = 10 * time.Second
+
+// Option configures a writer or a hook. Options are passed to NewWriter,
+// NewGraylogHook and NewAsyncGraylogHook.
+type Option func(*options)
+
+type options struct {
+	timeout    time.Duration
+	timeoutSet bool
+}
+
+// WithTimeout bounds the time spent connecting to and sending messages to
+// the Graylog server.
+//
+// For TCP and UDP it is used as the dial timeout and as a write deadline
+// set before each message is sent. For HTTP it is the http.Client timeout,
+// which covers the whole request.
+//
+// A timeout of zero means no timeout, for every protocol. Without this
+// option, HTTP uses DefaultHTTPTimeout and TCP/UDP use no timeout, as before.
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.timeout = timeout
+		o.timeoutSet = true
+	}
+}
+
+func newOptions(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&o)
+		}
+	}
+	return o
+}
+
 // NewWriter returns a new GELFWriter. This writer can be used to send the
 // output of the standard Go log functions to a central GELF server by
 // passing it to log.SetOutput()
-func NewWriter(addr string) (GELFWriter, error) {
+//
+// addr is "host:port" for UDP, "tcp://host:port" for TCP, or an http(s) URL.
+func NewWriter(addr string, opts ...Option) (GELFWriter, error) {
+	o := newOptions(opts)
+
 	if strings.HasPrefix(addr, "http") {
-		return newHTTPWriter(addr)
+		timeout := DefaultHTTPTimeout
+		if o.timeoutSet {
+			timeout = o.timeout
+		}
+		return newHTTPWriter(addr, timeout)
 	}
 	if strings.HasPrefix(addr, "tcp://") {
-		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"))
+		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"), o.timeout)
 	}
 
-	return newLowLevelProtocolWriter("udp", addr)
+	return newLowLevelProtocolWriter("udp", addr, o.timeout)
 }
 
-func newHTTPWriter(addr string) (GELFWriter, error) {
+func newHTTPWriter(addr string, timeout time.Duration) (GELFWriter, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{},
-		Timeout:   10 * time.Second,
+		Timeout:   timeout,
 	}
 
 	return HTTPWriter{
@@ -121,12 +172,14 @@ func newHTTPWriter(addr string) (GELFWriter, error) {
 	}, nil
 }
 
-func newLowLevelProtocolWriter(protocol, addr string) (GELFWriter, error) {
+func newLowLevelProtocolWriter(protocol, addr string, timeout time.Duration) (GELFWriter, error) {
 	var err error
 	w := new(LowLevelProtocolWriter)
 	w.CompressionLevel = flate.BestSpeed
+	w.Timeout = timeout
 
-	if w.conn, err = net.Dial(protocol, strings.TrimPrefix(addr, "tcp://")); err != nil {
+	d := net.Dialer{Timeout: timeout}
+	if w.conn, err = d.Dial(protocol, addr); err != nil {
 		return nil, err
 	}
 
@@ -182,7 +235,7 @@ func (w *LowLevelProtocolWriter) writeChunked(zBytes []byte) (err error) {
 		// write this chunk, and make sure the write was good
 		n, err := w.conn.Write(buf.Bytes())
 		if err != nil {
-			return fmt.Errorf("Write (chunk %d/%d): %s", i,
+			return fmt.Errorf("Write (chunk %d/%d): %w", i,
 				nChunks, err)
 		}
 		if n != len(buf.Bytes()) {
@@ -268,6 +321,11 @@ func (w *LowLevelProtocolWriter) WriteMessage(m *Message) (err error) {
 	w.zw.Close()
 
 	zBytes := zBuf.Bytes()
+
+	if err = w.setWriteDeadline(); err != nil {
+		return
+	}
+
 	if numChunks(zBytes) > 1 {
 		return w.writeChunked(zBytes)
 	}
@@ -281,6 +339,16 @@ func (w *LowLevelProtocolWriter) WriteMessage(m *Message) (err error) {
 	}
 
 	return nil
+}
+
+// setWriteDeadline bounds the next writes on the connection by w.Timeout,
+// or clears the deadline when w.Timeout is zero.
+func (w *LowLevelProtocolWriter) setWriteDeadline() error {
+	var deadline time.Time
+	if w.Timeout > 0 {
+		deadline = time.Now().Add(w.Timeout)
+	}
+	return w.conn.SetWriteDeadline(deadline)
 }
 
 /*
@@ -399,6 +467,7 @@ type HTTPWriter struct {
 	addr       string
 }
 
+// WriteMessage posts the message as JSON to the Graylog HTTP input.
 func (h HTTPWriter) WriteMessage(m *Message) (err error) {
 	mBytes, err := json.Marshal(m)
 	if err != nil {
