@@ -39,12 +39,15 @@ type graylogEntry struct {
 	line int
 }
 
-func NewGraylogHookTimeout(addr string, extra map[string]interface{},
-	timeout time.Duration) *GraylogHook {
-	g, err := NewWriterTimeout(addr, timeout)
+// NewGraylogHook creates a hook to be added to an instance of logger.
+// Options such as WithTimeout configure the underlying writer.
+//
+// If the writer can't be created, the error is logged and the returned hook
+// drops messages instead of sending them.
+func NewGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *GraylogHook {
+	g, err := NewWriter(addr, opts...)
 	if err != nil {
 		logrus.WithError(err).Error("Can't create Gelf logger")
-		return nil
 	}
 
 	host, err := os.Hostname()
@@ -63,20 +66,14 @@ func NewGraylogHookTimeout(addr string, extra map[string]interface{},
 	return hook
 }
 
-// NewGraylogHook creates a hook to be added to an instance of logger.
-func NewGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	return NewGraylogHookTimeout(addr, extra, 0)
-}
-
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
-func NewAsyncGraylogHookTimeout(addr string, extra map[string]interface{},
-	timeout time.Duration) *GraylogHook {
-	g, err := NewWriterTimeout(addr, timeout)
+// Options such as WithTimeout configure the underlying writer.
+func NewAsyncGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *GraylogHook {
+	g, err := NewWriter(addr, opts...)
 	if err != nil {
 		logrus.WithError(err).Error("Can't create Gelf logger")
-		return nil
 	}
 
 	host, err := os.Hostname()
@@ -94,13 +91,6 @@ func NewAsyncGraylogHookTimeout(addr string, extra map[string]interface{},
 	go hook.fire() // Log in background
 
 	return hook
-}
-
-// NewAsyncGraylogHook creates a hook to be added to an instance of logger.
-// The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
-// before exiting to empty the log queue.
-func NewAsyncGraylogHook(addr string, extra map[string]interface{}) *GraylogHook {
-	return NewAsyncGraylogHookTimeout(addr, extra, 0)
 }
 
 // Fire is called when a log event is fired.
@@ -130,8 +120,6 @@ func (hook *GraylogHook) Fire(entry *logrus.Entry) error {
 		}
 	}
 
-	// newEntry := entry.Dup()
-	// newEntry
 	newEntry := &logrus.Entry{
 		Logger:  entry.Logger,
 		Data:    newData,

@@ -48,6 +48,17 @@ func main() {
 }
 ```
 
+### Timeouts
+
+Pass `graylog.WithTimeout` to bound how long the hook waits for the Graylog server:
+
+```go
+hook := graylog.NewGraylogHook("tcp://<graylog_ip>:<graylog_port>", nil, graylog.WithTimeout(5*time.Second))
+```
+
+For TCP and UDP the timeout applies to the dial and to each message write. For HTTP it is the request timeout.
+A timeout of `0` disables it. Without the option, HTTP uses a 10 second timeout and TCP/UDP use none.
+
 ### Disable standard logging
 
 For some reason, you may want to disable logging on stdout, and keep only the messages in Graylog (ie: a webserver inside a docker container).
