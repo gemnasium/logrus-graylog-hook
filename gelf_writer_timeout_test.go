@@ -66,7 +66,7 @@ func TestTCPDialTimeout(t *testing.T) {
 	// 10.255.255.1 is not routable, so the connection attempt hangs until
 	// the dial timeout fires.
 	start := time.Now()
-	_, err := NewWriter("tcp://10.255.255.1:12201", WithTimeout(100*time.Millisecond))
+	_, err := NewWriter("tcp://10.255.255.1:12201", WithDialTimeout(100*time.Millisecond))
 	if err == nil {
 		t.Skip("unexpectedly connected to a non-routable address")
 	}
@@ -99,7 +99,7 @@ func TestTCPWriteTimeout(t *testing.T) {
 		accepted <- conn
 	}()
 
-	g, err := NewWriter("tcp://"+listener.Addr().String(), WithTimeout(100*time.Millisecond))
+	g, err := NewWriter("tcp://"+listener.Addr().String(), WithWriteTimeout(100*time.Millisecond))
 	if err != nil {
 		t.Fatalf("NewWriter: %s", err)
 	}
@@ -147,7 +147,7 @@ func TestUDPWriteDeadlineDisabledByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWriter: %s", err)
 	}
-	if got := g.(*LowLevelProtocolWriter).Timeout; got != 0 {
+	if got := g.(*LowLevelProtocolWriter).WriteTimeout; got != 0 {
 		t.Errorf("UDP writer should have no timeout by default, got %s", got)
 	}
 	if err := g.WriteMessage(&Message{Version: "1.1", Short: "hello"}); err != nil {
@@ -168,12 +168,12 @@ func TestHookWithTimeoutOption(t *testing.T) {
 		t.Fatalf("NewUDPReader: %s", err)
 	}
 	hook := NewGraylogHook(r.Addr(), nil, WithTimeout(time.Second))
-	if got := hook.Writer().(*LowLevelProtocolWriter).Timeout; got != time.Second {
+	if got := hook.Writer().(*LowLevelProtocolWriter).WriteTimeout; got != time.Second {
 		t.Errorf("hook writer timeout: expected 1s, got %s", got)
 	}
 
 	asyncHook := NewAsyncGraylogHook(r.Addr(), nil, WithTimeout(time.Second))
-	if got := asyncHook.Writer().(*LowLevelProtocolWriter).Timeout; got != time.Second {
+	if got := asyncHook.Writer().(*LowLevelProtocolWriter).WriteTimeout; got != time.Second {
 		t.Errorf("async hook writer timeout: expected 1s, got %s", got)
 	}
 }
@@ -191,4 +191,40 @@ func TestHookNotNilWhenWriterFails(t *testing.T) {
 	log.Out = io.Discard
 	log.AddHook(hook) // must not panic
 	log.Info("dropped")
+}
+
+func TestTimeoutOptions(t *testing.T) {
+	cases := []struct {
+		name      string
+		opts      []Option
+		wantDial  time.Duration
+		wantWrite time.Duration
+		wantSet   bool
+	}{
+		{"none", nil, 0, 0, false},
+		{"dial only", []Option{WithDialTimeout(time.Second)}, time.Second, 0, false},
+		{"write only", []Option{WithWriteTimeout(time.Second)}, 0, time.Second, true},
+		{"both", []Option{WithDialTimeout(2 * time.Second), WithWriteTimeout(time.Second)}, 2 * time.Second, time.Second, true},
+		{"shorthand", []Option{WithTimeout(time.Second)}, time.Second, time.Second, true},
+		{"last wins", []Option{WithTimeout(time.Second), WithWriteTimeout(0)}, time.Second, 0, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := newOptions(c.opts)
+			if o.dialTimeout != c.wantDial || o.writeTimeout != c.wantWrite || o.writeTimeoutSet != c.wantSet {
+				t.Errorf("got dial=%s write=%s set=%v, want dial=%s write=%s set=%v",
+					o.dialTimeout, o.writeTimeout, o.writeTimeoutSet, c.wantDial, c.wantWrite, c.wantSet)
+			}
+		})
+	}
+}
+
+func TestHTTPWriterDialTimeoutKeepsDefaultRequestTimeout(t *testing.T) {
+	w, err := NewWriter("http://127.0.0.1:1/gelf", WithDialTimeout(time.Second))
+	if err != nil {
+		t.Fatalf("NewWriter: %s", err)
+	}
+	if got := w.(HTTPWriter).httpClient.Timeout; got != DefaultHTTPTimeout {
+		t.Errorf("WithDialTimeout alone should keep the default HTTP timeout, got %s", got)
+	}
 }

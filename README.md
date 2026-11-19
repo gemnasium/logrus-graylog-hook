@@ -50,14 +50,22 @@ func main() {
 
 ### Timeouts
 
-Pass `graylog.WithTimeout` to bound how long the hook waits for the Graylog server:
+Pass timeout options to bound how long the hook waits for the Graylog server:
 
 ```go
-hook := graylog.NewGraylogHook("tcp://<graylog_ip>:<graylog_port>", nil, graylog.WithTimeout(5*time.Second))
+hook := graylog.NewGraylogHook("tcp://<graylog_ip>:<graylog_port>", nil,
+	graylog.WithDialTimeout(5*time.Second),
+	graylog.WithWriteTimeout(500*time.Millisecond),
+)
 ```
 
-For TCP and UDP the timeout applies to the dial and to each message write. For HTTP it is the request timeout.
-A timeout of `0` disables it. Without the option, HTTP uses a 10 second timeout and TCP/UDP use none.
+- `WithDialTimeout` bounds connecting to the server.
+- `WithWriteTimeout` bounds sending each message. For TCP and UDP it is a write deadline set before each message. For HTTP it is the request timeout. With a synchronous hook, it is the longest a logging call can block on Graylog.
+- `WithTimeout(d)` sets both.
+
+A timeout of `0` disables it. Without the options, HTTP uses a 10 second request timeout and TCP/UDP use none.
+
+When a TCP write times out, part of the message may already have been sent. The connection is reused, so Graylog will likely drop that message and the next one.
 
 ### Disable standard logging
 
