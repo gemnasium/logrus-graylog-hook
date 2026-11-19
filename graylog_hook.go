@@ -40,7 +40,7 @@ type graylogEntry struct {
 }
 
 // NewGraylogHook creates a hook to be added to an instance of logger.
-// Options such as WithTimeout configure the underlying writer.
+// Options such as WithDialTimeout and WithWriteTimeout configure the underlying writer.
 //
 // If the writer can't be created, the error is logged and the returned hook
 // drops messages instead of sending them.
@@ -69,7 +69,10 @@ func NewGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *
 // NewAsyncGraylogHook creates a hook to be added to an instance of logger.
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
-// Options such as WithTimeout configure the underlying writer.
+// Options such as WithDialTimeout and WithWriteTimeout configure the underlying writer.
+//
+// If the writer can't be created, the error is logged and the returned hook
+// drops messages instead of sending them.
 func NewAsyncGraylogHook(addr string, extra map[string]interface{}, opts ...Option) *GraylogHook {
 	g, err := NewWriter(addr, opts...)
 	if err != nil {

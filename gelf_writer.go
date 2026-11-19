@@ -37,9 +37,9 @@ type LowLevelProtocolWriter struct {
 	Facility         string // defaults to current process name
 	CompressionLevel int    // one of the consts from compress/flate
 	CompressionType  CompressType
-	// Timeout is the write deadline applied before each message is sent.
-	// Zero means no deadline. Set from WithTimeout, which also bounds the dial.
-	Timeout time.Duration
+	// WriteTimeout is the write deadline applied before each message is
+	// sent. Zero means no deadline. Set from WithWriteTimeout or WithTimeout.
+	WriteTimeout time.Duration
 
 	zw                 writerCloserResetter
 	zwCompressionLevel int
@@ -99,8 +99,8 @@ func numChunks(b []byte) int {
 	return len(b)/chunkedDataLen + 1
 }
 
-// DefaultHTTPTimeout is the timeout used by the HTTP writer when no
-// WithTimeout option is given.
+// DefaultHTTPTimeout is the request timeout used by the HTTP writer when
+// neither WithWriteTimeout nor WithTimeout is given.
 const DefaultHTTPTimeout = 10 * time.Second
 
 // Option configures a writer or a hook. Options are passed to NewWriter,
@@ -108,23 +108,48 @@ const DefaultHTTPTimeout = 10 * time.Second
 type Option func(*options)
 
 type options struct {
-	timeout    time.Duration
-	timeoutSet bool
+	dialTimeout     time.Duration
+	writeTimeout    time.Duration
+	writeTimeoutSet bool
 }
 
-// WithTimeout bounds the time spent connecting to and sending messages to
-// the Graylog server.
+// WithDialTimeout bounds the time spent connecting to the Graylog server.
+// For UDP, dialing doesn't touch the network, so it only bounds the DNS
+// lookup.
 //
-// For TCP and UDP it is used as the dial timeout and as a write deadline
-// set before each message is sent. For HTTP it is the http.Client timeout,
-// which covers the whole request.
+// A timeout of zero means no timeout, which is the default.
+func WithDialTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.dialTimeout = timeout
+	}
+}
+
+// WithWriteTimeout bounds the time spent sending each message to the
+// Graylog server. With a synchronous hook, it is the longest a logging
+// call can block on Graylog.
+//
+// For TCP and UDP it is a write deadline set before each message is sent.
+// For HTTP it is the http.Client timeout, which covers the whole request.
+//
+// When a TCP write times out, part of the message may already have been
+// sent. The writer keeps using the same connection, so the next message
+// follows the partial one and Graylog will likely drop both.
 //
 // A timeout of zero means no timeout, for every protocol. Without this
-// option, HTTP uses DefaultHTTPTimeout and TCP/UDP use no timeout, as before.
+// option, HTTP uses DefaultHTTPTimeout and TCP/UDP use no timeout.
+func WithWriteTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.writeTimeout = timeout
+		o.writeTimeoutSet = true
+	}
+}
+
+// WithTimeout sets both the dial and the write timeouts. It is a shorthand
+// for WithDialTimeout(timeout) and WithWriteTimeout(timeout).
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *options) {
-		o.timeout = timeout
-		o.timeoutSet = true
+		WithDialTimeout(timeout)(o)
+		WithWriteTimeout(timeout)(o)
 	}
 }
 
@@ -147,23 +172,23 @@ func NewWriter(addr string, opts ...Option) (GELFWriter, error) {
 	o := newOptions(opts)
 
 	if strings.HasPrefix(addr, "http") {
-		timeout := DefaultHTTPTimeout
-		if o.timeoutSet {
-			timeout = o.timeout
+		if !o.writeTimeoutSet {
+			o.writeTimeout = DefaultHTTPTimeout
 		}
-		return newHTTPWriter(addr, timeout)
+		return newHTTPWriter(addr, o)
 	}
 	if strings.HasPrefix(addr, "tcp://") {
-		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"), o.timeout)
+		return newLowLevelProtocolWriter("tcp", strings.TrimPrefix(addr, "tcp://"), o)
 	}
 
-	return newLowLevelProtocolWriter("udp", addr, o.timeout)
+	return newLowLevelProtocolWriter("udp", addr, o)
 }
 
-func newHTTPWriter(addr string, timeout time.Duration) (GELFWriter, error) {
+func newHTTPWriter(addr string, o options) (GELFWriter, error) {
+	dialer := &net.Dialer{Timeout: o.dialTimeout}
 	httpClient := &http.Client{
-		Transport: &http.Transport{},
-		Timeout:   timeout,
+		Transport: &http.Transport{DialContext: dialer.DialContext},
+		Timeout:   o.writeTimeout,
 	}
 
 	return HTTPWriter{
@@ -172,13 +197,13 @@ func newHTTPWriter(addr string, timeout time.Duration) (GELFWriter, error) {
 	}, nil
 }
 
-func newLowLevelProtocolWriter(protocol, addr string, timeout time.Duration) (GELFWriter, error) {
+func newLowLevelProtocolWriter(protocol, addr string, o options) (GELFWriter, error) {
 	var err error
 	w := new(LowLevelProtocolWriter)
 	w.CompressionLevel = flate.BestSpeed
-	w.Timeout = timeout
+	w.WriteTimeout = o.writeTimeout
 
-	d := net.Dialer{Timeout: timeout}
+	d := net.Dialer{Timeout: o.dialTimeout}
 	if w.conn, err = d.Dial(protocol, addr); err != nil {
 		return nil, err
 	}
@@ -341,12 +366,12 @@ func (w *LowLevelProtocolWriter) WriteMessage(m *Message) (err error) {
 	return nil
 }
 
-// setWriteDeadline bounds the next writes on the connection by w.Timeout,
-// or clears the deadline when w.Timeout is zero.
+// setWriteDeadline bounds the next writes on the connection by w.WriteTimeout,
+// or clears the deadline when w.WriteTimeout is zero.
 func (w *LowLevelProtocolWriter) setWriteDeadline() error {
 	var deadline time.Time
-	if w.Timeout > 0 {
-		deadline = time.Now().Add(w.Timeout)
+	if w.WriteTimeout > 0 {
+		deadline = time.Now().Add(w.WriteTimeout)
 	}
 	return w.conn.SetWriteDeadline(deadline)
 }
